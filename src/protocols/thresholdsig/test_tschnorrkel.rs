@@ -1,24 +1,11 @@
 #![allow(non_snake_case)]
-/*
-    Multisig Schnorr
 
-    Copyright 2018 by Kzen Networks
 
-    This file is part of Multisig Schnorr library
-    (https://github.com/KZen-networks/multisig-schnorr)
-
-    Multisig Schnorr is free software: you can redistribute
-    it and/or modify it under the terms of the GNU General Public
-    License as published by the Free Software Foundation, either
-    version 3 of the License, or (at your option) any later version.
-
-    @license GPL-3.0+ <https://github.com/KZen-networks/multisig-schnorr/blob/master/LICENSE>
-*/
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use protocols::thresholdsig::tschnorrkel::*;
 
-use curv::elliptic::curves::secp256_k1::FE;
-use curv::elliptic::curves::secp256_k1::GE;
-use protocols::thresholdsig::bitcoin_schnorr::*;
+use curv::elliptic::curves::curve_ristretto::FE;
+use curv::elliptic::curves::curve_ristretto::GE;
 
 #[test]
 #[allow(unused_doc_comments)]
@@ -181,3 +168,5 @@ pub fn keygen_t_n_parties(
 
     (party_keys_vec, shared_keys_vec, y_sum, vss_scheme_vec)
 }
+
+

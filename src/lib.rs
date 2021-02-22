@@ -20,6 +20,11 @@ extern crate serde;
 
 extern crate centipede;
 extern crate curv;
+
+extern crate schnorrkel;
+
+extern crate rand;
+
 pub mod protocols;
 
 #[derive(Copy, PartialEq, Eq, Clone, Debug)]

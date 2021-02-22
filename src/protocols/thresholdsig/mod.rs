@@ -17,6 +17,8 @@
 pub mod bitcoin_schnorr;
 mod test_bitcoin;
 mod test_zilliqa;
+mod test_tschnorrkel;
+
 /// Schnorr signature variants:
 /// Elliptic Curve Schnorr signatures for message m and public key P generally involve
 /// a point R, integers e and s picked by the signer, and generator G which satisfy e = H(R || m)
@@ -28,3 +30,14 @@ mod test_zilliqa;
 
 /// variant (1)
 pub mod zilliqa_schnorr;
+
+/// variant (2)
+/// Schnorr signature variants:
+/// Elliptic Curve Schnorr signatures for message m and public key P (=xG where x is secret scalar in G) generally involve
+/// a point R (=rG), integers r picked by the signer, and generator G which satisfy
+/// k = scalar(m)
+/// s = kx + r
+/// Signatures are (R,s) that satisfy sG = R + kP.
+pub mod tschnorrkel;
+mod test_scnorrkell;
+
