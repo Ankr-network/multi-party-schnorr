@@ -87,8 +87,15 @@ fn test_t2_n4_with_new() {
     let signRound3 = signRound13.unwrap();
     let signature = signRound3.signature;
 
-    assert!(signature.verify(&message, &pubKey).is_ok(),"invalid signature");
 
+    let secret = key1.share + key2.share + key3.share+ (&client4.key).share;
+
+    let publicKey2  = &ECPoint::generator() * &secret;
+    println!("pubKey {:?}",pubKey);
+    println!("pubKey2 {:?}",publicKey2);
+
+
+    assert!(signature.verify(&message, &pubKey).is_ok(),"invalid signature");
 
 }
 

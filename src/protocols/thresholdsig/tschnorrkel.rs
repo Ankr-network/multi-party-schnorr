@@ -13,7 +13,7 @@ use curv::elliptic::curves::traits::*;
 #[allow(unused_doc_comments)]
 use Error::{self, InvalidSig, InvalidSS};
 
-type GE = curv::elliptic::curves::curve_ristretto::GE;
+pub(crate) type GE = curv::elliptic::curves::curve_ristretto::GE;
 type FE = curv::elliptic::curves::curve_ristretto::FE;
 
 #[derive(Debug)]
@@ -178,7 +178,7 @@ impl Signature {
         let k = ECScalar::from(&kt2);
 
 
-        let P:GE = GE::generator();
+        let P:GE = ECPoint::generator();
         let Rprime = &P * &self.s + pubKey * &k;
 
         println!("Rprime: {:?}", Rprime);
@@ -206,12 +206,12 @@ pub fn NewDkgGen(session_id: String, player_id: usize, t: usize, n: usize) -> Dk
         shares2: Default::default(),
         key: SchnorkellKey {
             share: FE::zero(),
-            public_key: GE::generator(),
+            public_key: ECPoint::generator(),
             player_id: player_id.clone(),
             poly: VerifiableSS{ parameters: ShamirSecretSharing { threshold: 0, share_count: 0 }, commitments: vec![] },
             r_i: FE::zero(),
             sigma_i: FE::zero(),
-            R: GE::generator(),
+            R: ECPoint::generator(),
             message: vec![],
         },
     }
@@ -268,7 +268,7 @@ impl DkgGen {
                 round3: Round3Message {
                     sender_id: 0,
                     session_id: "".to_string(),
-                    public_key: GE::generator(),
+                    public_key: ECPoint::generator(),
                 },
             };
             player.round1 = next.clone();
