@@ -2,7 +2,7 @@
 
 
 use protocols::thresholdsig::tschnorrkel::*;
-
+use curv::elliptic::curves::traits::ECPoint;
 
 
 #[test]
@@ -47,10 +47,11 @@ fn test_t2_n4_with_new() {
     assert!(round33.is_ok());
     assert!(round43.is_ok());
 
-    println!("Public Key: 0x{}", hex::encode(round13.unwrap().public_key));
-    println!("Public Key: 0x{}", hex::encode(round23.unwrap().public_key));
-    println!("Public Key: 0x{}", hex::encode(round33.unwrap().public_key));
-    println!("Public Key: 0x{}", hex::encode(round43.unwrap().public_key));
+    let pubKey = round13.unwrap().public_key;
+
+    println!("Public Key: 0x{}", round23.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
+    println!("Public Key: 0x{}", round33.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
+    println!("Public Key: 0x{}", round43.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
 
 
     let mut key1 = client1.key;
@@ -83,9 +84,12 @@ fn test_t2_n4_with_new() {
     assert!(signRound23.is_ok());
     assert!(signRound33.is_ok());
 
-    println!("{:?}", signRound13.unwrap());
-    println!("{:?}", signRound23.unwrap());
-    println!("{:?}", signRound33.unwrap());
+    let signRound3 = signRound13.unwrap();
+    let signature = signRound3.signature;
+
+    println!("{:?}", signature.verify(&message, &pubKey));
+
+
 
 
 }

@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 pub use curv::BigInt;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSharing;
+use std::ops::Neg;
 
 type GE = curv::elliptic::curves::curve_ristretto::GE;
 type FE = curv::elliptic::curves::curve_ristretto::FE;
@@ -48,15 +49,15 @@ pub struct Round2Message {
     pub vs2:  Vec<u8>,// a share on simulated poly = f_v2(PlayerId)
     pub vcf:  Vec<u8>,//commit on original poly = f_v * G + f_v2 * H
 }
-#[derive(Default,Clone,Hash, Eq, PartialEq, Debug)]
+#[derive(Clone,Debug)]
 #[derive(Serialize, Deserialize)]
 pub struct Round3Message {
     pub sender_id: usize,
     pub session_id: String,
-    pub public_key:  Vec<u8>,
+    pub public_key:  GE,
 }
 
-#[derive(Default, Hash, Eq, PartialEq, Debug)]
+#[derive(Debug)]
 pub struct Player{
     pub round1: Round1Message,
     pub round2: Round2Message,
@@ -86,8 +87,8 @@ pub struct Parameters {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signature {
-    pub sigma: FE,
-    pub v: GE,
+    pub s: FE,
+    pub R: GE,
 }
 
 #[derive(Clone, Debug)]
@@ -109,8 +110,8 @@ pub struct SigRound2Message {
 #[derive(Clone, Debug)]
 #[derive(Serialize, Deserialize)]
 pub struct SigRound3Message {
-    sender_id: usize,
-    signature: Signature,
+    pub sender_id: usize,
+    pub signature: Signature,
 }
 
 impl SchnorkellKey {
@@ -165,12 +166,29 @@ impl SchnorkellKey {
 
         Ok(SigRound3Message{
             sender_id: self.player_id.clone(),
-            signature: Signature{ sigma: sigma, v: self.ephemeral }
+            signature: Signature{ s: sigma, R: self.ephemeral }
         })
     }
 
 }
+impl Signature {
+    pub fn verify(&self, message: &[u8], publicKeyY: &GE) -> Result<(), Error> {
+        let m = HSha256::create_hash_from_slice(
+            &message[..],
+        );
 
+        let k: FE = ECScalar::from(&m.neg());
+        let P: GE = GE::generator();
+
+        let Rprime =  &P * &self.s + &P * &k;
+
+        if Rprime == self.R {
+            Ok(())
+        } else {
+            Err(InvalidSig)
+        }
+    }
+}
 pub fn NewDkgGen(session_id: String, player_id: usize, t: usize, n: usize) -> DkgGen{
     DkgGen{
         session_id: session_id.clone(),
@@ -241,7 +259,15 @@ impl DkgGen {
         assert!(sessionCheck,"not the same session");
 
         round1s.into_iter().map(|next|{
-            let mut player = Player::default();
+            let mut player = Player{
+                round1: Default::default(),
+                round2: Default::default(),
+                round3: Round3Message {
+                    sender_id: 0,
+                    session_id: "".to_string(),
+                    public_key: GE::generator(),
+                }
+            };
             player.round1 = next.clone();
             self.players.insert(next.sender_id,player);
             true
@@ -308,29 +334,9 @@ impl DkgGen {
         Ok(Round3Message {
             sender_id: self.player_id.clone(),
             session_id: self.session_id.clone(),
-            public_key: self.key.public_key.pk_to_key_slice()
+            public_key: self.key.public_key.clone()
         })
     }
 }
 
-impl Signature {
-    pub fn verify(&self, message: &[u8], pubkey_y: &GE) -> Result<(), Error> {
-        let e_bn = HSha256::create_hash(&[
-            &self.v.bytes_compressed_to_big_int(),
-            &pubkey_y.bytes_compressed_to_big_int(),
-            &BigInt::from(message),
-        ]);
-        let e: FE = ECScalar::from(&e_bn);
 
-        let g: GE = GE::generator();
-        let sigma_g = g * &self.sigma;
-        let e_y = pubkey_y * &e;
-        let e_y_plus_v = e_y + &self.v;
-
-        if e_y_plus_v == sigma_g {
-            Ok(())
-        } else {
-            Err(InvalidSig)
-        }
-    }
-}
