@@ -12,7 +12,6 @@ use std::collections::HashMap;
 
 pub use curv::BigInt;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSharing;
-use std::ops::Neg;
 
 type GE = curv::elliptic::curves::curve_ristretto::GE;
 type FE = curv::elliptic::curves::curve_ristretto::FE;
@@ -177,11 +176,16 @@ impl Signature {
             &message[..],
         );
 
-        let k: FE = ECScalar::from(&m.neg());
-        let P: GE = GE::generator();
+         let kt1 :FE = ECScalar::from(&m);
+         let kt2 = FE::q() - kt1.to_big_int() ;
+         let k = ECScalar::from(&kt2);
+         let P  = GE::generator();
 
-        let Rprime =  &P * &self.s + &P * &k;
+        let Rprime =  &P * &self.s + publicKeyY * &k;
 
+
+        println!("{:?}", Rprime);
+        println!("{:?}", self.R);
         if Rprime == self.R {
             Ok(())
         } else {
