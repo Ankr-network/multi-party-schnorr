@@ -31,7 +31,7 @@ pub struct DkgGen {
     pub key: SchnorkellKey,
 }
 
-#[derive(Default, Clone, Hash, Eq, PartialEq, Debug)]
+#[derive(Default, Clone, Debug)]
 #[derive(Serialize, Deserialize)]
 pub struct Round1Message {
     sender_id: usize,
@@ -40,7 +40,7 @@ pub struct Round1Message {
 }
 
 
-#[derive(Default, Clone, Hash, Eq, PartialEq, Debug)]
+#[derive(Default, Clone, Debug)]
 #[derive(Serialize, Deserialize)]
 pub struct Round2Message {
     pub sender_id: usize,
@@ -53,8 +53,7 @@ pub struct Round2Message {
     pub vcf: Vec<u8>,//commit on original poly = f_v * G + f_v2 * H
 }
 
-#[derive(Clone, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Round3Message {
     pub sender_id: usize,
     pub session_id: String,
@@ -68,93 +67,84 @@ pub struct Player {
     pub round3: Round3Message,
 }
 
-#[derive(Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchnorkellKey {
     pub share: FE,
     pub public_key: GE,
     pub player_id: usize,
-    pub poly: Vec<u8>,
+    pub poly: VerifiableSS<GE>,
 
-    ephemeral_i: FE,
-    ephemeral: GE,
+    r_i: FE,
+    R: GE,
     sigma_i: FE,
     message: Vec<u8>,
 }
 
-#[derive(Debug, Default)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Parameters {
-    pub threshold: usize,
-    //t
+    pub threshold: usize, //t
     pub share_count: usize, //n
 }
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signature {
-    pub s: FE,
-    pub R: GE,
+    pub s: FE,//s=r + kx  where k = scalar(message), x is shared secret, r is random
+    pub R: GE,//rP
 }
 
-#[derive(Clone, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigRound1Message {
     sender_id: usize,
     session_id: String,
-    ephemeral: GE,
+    R_i: GE, //r_i * P
 }
 
 
-#[derive(Default, Clone, Hash, Eq, PartialEq, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigRound2Message {
     sender_id: usize,
-    r_comp: Vec<u8>,
-    sigma_i: Vec<u8>,
+    R: GE, // r * P
+    sigma_i: FE,
 }
 
-#[derive(Clone, Debug)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigRound3Message {
     pub sender_id: usize,
     pub signature: Signature,
 }
 
 impl SchnorkellKey {
-    pub fn get_poly(&self) -> VerifiableSS<GE> {
-        serde_json::from_slice(&self.poly).unwrap()
-    }
 
-    pub fn signRound1(&mut self, session_id: String, message: &Vec<u8>) -> Result<SigRound1Message, Error> {
-        self.ephemeral_i = ECScalar::new_random();
-        self.ephemeral = &ECPoint::generator() * &self.ephemeral_i;
+     pub fn signRound1(&mut self, session_id: String, message: &Vec<u8>) -> Result<SigRound1Message, Error> {
+        self.r_i = ECScalar::new_random();
+        self.R = &ECPoint::generator() * &self.r_i;
         self.message = message.clone();
 
         Ok(SigRound1Message {
             sender_id: self.player_id.clone(),
             session_id: session_id.clone(),
-            ephemeral: self.ephemeral.clone(),
+            R_i: self.R.clone(),
         })
     }
     pub fn signRound2(&mut self, round1s: &[SigRound1Message]) -> Result<SigRound2Message, Error> {
         //shared random R= Sum (R_i)
-        self.ephemeral = round1s.iter().fold(self.ephemeral.clone(), |acc, next| acc + next.ephemeral);
+        self.R = round1s.iter().fold(self.R.clone(), |acc, next| acc + next.R_i);
 
-        let r_comp = self.ephemeral.bytes_compressed_to_big_int();
-        //modify this for schnorkell
+         //modify this for schnorkell
         let m = HSha256::create_hash_from_slice(
             &self.message[..],
         );
+
         let k: FE = ECScalar::from(&m);
-        let sigma_i = self.ephemeral_i + k * self.share.clone();
+        let sigma_i = self.r_i + k * self.share.clone();
 
         self.sigma_i = sigma_i.clone();
 
         Ok(SigRound2Message {
             sender_id: self.player_id.clone(),
-            r_comp: BigInt::to_vec(&r_comp),
-            sigma_i: serde_json::to_vec(&sigma_i).unwrap(),
+            R: self.R,
+            sigma_i: sigma_i.clone(),
         })
     }
     pub fn signRound3(&mut self, round2s: &[SigRound2Message]) -> Result<SigRound3Message, Error> {
@@ -163,23 +153,21 @@ impl SchnorkellKey {
 
         round2s.iter().map(|next| {
             indices.push(next.sender_id);
-            let sigma_i: FE = serde_json::from_slice(&next.sigma_i).unwrap();
-            shares.push(sigma_i);
+            shares.push(next.sigma_i);
             true
         }).all(|x| x == true);
 
-        let poly = self.get_poly();
-        let sigma = poly.reconstruct(indices.as_slice(), shares.as_slice());
+        let sigma = self.poly.reconstruct(indices.as_slice(), shares.as_slice());
 
         Ok(SigRound3Message {
             sender_id: self.player_id.clone(),
-            signature: Signature { s: sigma, R: self.ephemeral },
+            signature: Signature { s: sigma, R: self.R },
         })
     }
 }
 
 impl Signature {
-    pub fn verify(&self, message: &[u8], publicKeyY: &GE) -> Result<(), Error> {
+    pub fn verify(&self, message: &[u8], pubKey: &GE) -> Result<(), Error> {
         //modify this with schnorkell constructions
         let m = HSha256::create_hash_from_slice(
             &message[..],
@@ -191,11 +179,10 @@ impl Signature {
 
 
         let P:GE = GE::generator();
-        let Rprime = P * self.s + publicKeyY * &k;
+        let Rprime = &P * &self.s + pubKey * &k;
 
-
-        println!("{:?}", Rprime);
-        println!("{:?}", self.R);
+        println!("Rprime: {:?}", Rprime);
+        println!("R: {:?}", self.R);
         if Rprime == self.R {
             Ok(())
         } else {
@@ -221,10 +208,10 @@ pub fn NewDkgGen(session_id: String, player_id: usize, t: usize, n: usize) -> Dk
             share: FE::zero(),
             public_key: GE::generator(),
             player_id: player_id.clone(),
-            poly: vec![],
-            ephemeral_i: FE::zero(),
+            poly: VerifiableSS{ parameters: ShamirSecretSharing { threshold: 0, share_count: 0 }, commitments: vec![] },
+            r_i: FE::zero(),
             sigma_i: FE::zero(),
-            ephemeral: GE::generator(),
+            R: GE::generator(),
             message: vec![],
         },
     }
@@ -269,7 +256,7 @@ impl DkgGen {
         })
     }
     pub fn round2(&mut self, round1s: &[Round1Message]) -> Result<Vec<Round2Message>, Error> {
-        let sessionCheck: bool = round1s.iter().map(|next| {
+        let sessionCheck = round1s.iter().map(|next| {
             self.session_id == next.session_id
         }).all(|x| x == true);
         assert!(sessionCheck, "not the same session");
@@ -314,7 +301,7 @@ impl DkgGen {
 
             let share: FE = serde_json::from_slice(&next.vs).unwrap();
             let sim_share: FE = serde_json::from_slice(&next.vs2).unwrap();
-            let sum_share = share + sim_share;
+            let sum_share = share + &sim_share;
 
             let poly: VerifiableSS<GE> = serde_json::from_slice(&next.vcf).unwrap();
             let sumPoly: VerifiableSS<GE> = serde_json::from_slice(&player.round1.ck).unwrap();
@@ -325,7 +312,7 @@ impl DkgGen {
             shareFinal = shareFinal + &share;
 
             commitment = (0..commitment.len()).map(|i| {
-                commitment[i] + poly.commitments[i]
+                commitment[i] + &poly.commitments[i]
             }).collect::<Vec<GE>>();
 
             val_share && val_sumshare
@@ -343,7 +330,7 @@ impl DkgGen {
             return Err(InvalidSS);
         }
 
-        self.key.poly = serde_json::to_vec(&polyFinal).unwrap();
+        self.key.poly = polyFinal.clone();
         self.key.share = shareFinal;
         self.key.public_key = polyFinal.get_point_commitment(0);
 

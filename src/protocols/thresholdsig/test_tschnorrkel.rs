@@ -87,9 +87,7 @@ fn test_t2_n4_with_new() {
     let signRound3 = signRound13.unwrap();
     let signature = signRound3.signature;
 
-    println!("{:?}", signature.verify(&message, &pubKey));
-
-
+    assert!(signature.verify(&message, &pubKey).is_ok(),"invalid signature");
 
 
 }
