@@ -25,6 +25,8 @@ extern crate schnorrkel;
 
 extern crate rand;
 
+extern crate serde_json;
+
 pub mod protocols;
 
 #[derive(Copy, PartialEq, Eq, Clone, Debug)]

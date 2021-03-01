@@ -15,6 +15,7 @@ serde = "1.0"
 serde_derive = "1.0"
 curv = { git = "https://github.com/KZen-networks/curv" , tag = "v0.5.9"}
 schnorrkel = "0.9.1"
+serde_json = "1.0"
 
 [dependencies.centipede]
 git = "https://github.com/KZen-networks/centipede"

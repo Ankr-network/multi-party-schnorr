@@ -1,282 +1,319 @@
 #![allow(non_snake_case)]
 #[allow(unused_doc_comments)]
 
-use Error::{self, InvalidKey, InvalidSS, InvalidSig};
-use curv::arithmetic::traits::*;
+use Error::{self, InvalidSS, InvalidSig};
 use curv::elliptic::curves::traits::*;
 
 pub use curv::arithmetic::traits::Converter;
-use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
-use curv::cryptographic_primitives::commitments::traits::Commitment;
 use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
 use curv::cryptographic_primitives::hashing::traits::Hash;
 pub use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use std::collections::HashMap;
+
 pub use curv::BigInt;
+use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSharing;
+
 type GE = curv::elliptic::curves::curve_ristretto::GE;
 type FE = curv::elliptic::curves::curve_ristretto::FE;
 
-const SECURITY: usize = 256;
-
-pub struct Keys {
-    pub u_i: FE,
-    pub y_i: GE,
-    pub party_index: usize,
-}
-
-pub struct KeyGenBroadcastMessage1 {
-    com: BigInt,
-}
-
 #[derive(Debug)]
+pub struct DkgGen{
+    pub session_id: String,
+    pub player_id: usize,
+    pub params: Parameters,
+    pub players: HashMap<usize,  Player>,
+    pub vss:VerifiableSS<GE>,
+    pub shares: HashMap<usize,  FE>, // real share
+    pub shares2: HashMap<usize,  FE>, //simulated share
+    pub vss2:VerifiableSS<GE>,
+    pub key: SchnorkellKey,
+}
+
+#[derive(Default, Clone,Hash, Eq, PartialEq, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct Round1Message {
+    sender_id: usize,
+    session_id: String,
+    ck:  Vec<u8>,
+}
+
+
+#[derive(Default,Clone,Hash, Eq, PartialEq, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct Round2Message {
+    pub sender_id: usize,
+    pub receiver_id: usize,
+    pub session_id: String,
+    pub vs:  Vec<u8>,// a share on original poly = f_v(PlayerId)
+    pub vs2:  Vec<u8>,// a share on simulated poly = f_v2(PlayerId)
+    pub vcf:  Vec<u8>,//commit on original poly = f_v * G + f_v2 * H
+}
+#[derive(Default,Clone,Hash, Eq, PartialEq, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct Round3Message {
+    pub sender_id: usize,
+    pub session_id: String,
+    pub public_key:  Vec<u8>,
+}
+
+#[derive(Default, Hash, Eq, PartialEq, Debug)]
+pub struct Player{
+    pub round1: Round1Message,
+    pub round2: Round2Message,
+    pub round3: Round3Message,
+}
+#[derive(Debug)]
+ #[derive(Serialize, Deserialize)]
+pub struct SchnorkellKey {
+    pub share: FE,
+    pub public_key: GE,
+    pub player_id: usize,
+    pub poly:Vec<u8>,
+
+    ephemeral_i: FE,
+    ephemeral: GE,
+    sigma_i: FE,
+    message:  Vec<u8>,
+}
+
+#[derive(Debug, Default)]
+#[derive(Serialize, Deserialize)]
 pub struct Parameters {
     pub threshold: usize,   //t
     pub share_count: usize, //n
 }
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SharedKeys {
-    pub y: GE,
-    pub x_i: FE,
-}
 
-impl Keys {
-    pub fn phase1_create(index: usize) -> Keys {
-        let u: FE = ECScalar::new_random();
-        let y = &ECPoint::generator() * &u;
 
-        Keys {
-            u_i: u,
-            y_i: y,
-            party_index: index.clone(),
-        }
-    }
-
-    pub fn phase1_broadcast(&self) -> (KeyGenBroadcastMessage1, BigInt) {
-        let blind_factor = BigInt::sample(SECURITY);
-        let com = HashCommitment::create_commitment_with_user_defined_randomness(
-            &self.y_i.bytes_compressed_to_big_int(),
-            &blind_factor,
-        );
-        let bcm1 = KeyGenBroadcastMessage1 { com };
-        (bcm1, blind_factor)
-    }
-
-    pub fn phase1_verify_com_phase2_distribute(
-        &self,
-        params: &Parameters,
-        blind_vec: &Vec<BigInt>,
-        y_vec: &Vec<GE>,
-        bc1_vec: &Vec<KeyGenBroadcastMessage1>,
-        parties: &[usize],
-    ) -> Result<(VerifiableSS<GE>, Vec<FE>, usize), Error> {
-        // test length:
-        assert_eq!(blind_vec.len(), params.share_count);
-        assert_eq!(bc1_vec.len(), params.share_count);
-        assert_eq!(y_vec.len(), params.share_count);
-        // test decommitments
-        let correct_key_correct_decom_all = (0..bc1_vec.len())
-            .map(|i| {
-                HashCommitment::create_commitment_with_user_defined_randomness(
-                    &y_vec[i].bytes_compressed_to_big_int(),
-                    &blind_vec[i],
-                ) == bc1_vec[i].com
-            })
-            .all(|x| x == true);
-        /*
-        let (vss_scheme, secret_shares) = VerifiableSS::share_at_indices(
-            params.threshold,
-            params.share_count,
-            &self.u_i,
-            parties,
-        );
-        */
-        let (vss_scheme, secret_shares) = VerifiableSS::share_at_indices(
-            params.threshold,
-            params.share_count,
-            &self.u_i,
-            &parties,
-        );
-
-        match correct_key_correct_decom_all {
-            true => Ok((vss_scheme, secret_shares, self.party_index.clone())),
-            false => Err(InvalidKey),
-        }
-    }
-
-    pub fn phase2_verify_vss_construct_keypair(
-        &self,
-        params: &Parameters,
-        y_vec: &Vec<GE>,
-        secret_shares_vec: &Vec<FE>,
-        vss_scheme_vec: &Vec<VerifiableSS<GE>>,
-        index: &usize,
-    ) -> Result<SharedKeys, Error> {
-        assert_eq!(y_vec.len(), params.share_count);
-        assert_eq!(secret_shares_vec.len(), params.share_count);
-        assert_eq!(vss_scheme_vec.len(), params.share_count);
-
-        let correct_ss_verify = (0..y_vec.len())
-            .map(|i| {
-                vss_scheme_vec[i]
-                    .validate_share(&secret_shares_vec[i], *index)
-                    .is_ok()
-                    && vss_scheme_vec[i].commitments[0] == y_vec[i]
-            })
-            .all(|x| x == true);
-
-        match correct_ss_verify {
-            true => {
-                let mut y_vec_iter = y_vec.iter();
-                let y0 = y_vec_iter.next().unwrap();
-                let y = y_vec_iter.fold(y0.clone(), |acc, x| acc + x);
-                let x_i = secret_shares_vec.iter().fold(FE::zero(), |acc, x| acc + x);
-                Ok(SharedKeys { y, x_i })
-            }
-            false => Err(InvalidSS),
-        }
-    }
-
-    // remove secret shares from x_i for parties that are not participating in signing
-    pub fn update_shared_key(
-        shared_key: &SharedKeys,
-        parties_in: &[usize],
-        secret_shares_vec: &Vec<FE>,
-    ) -> SharedKeys {
-        let mut new_xi: FE = FE::zero();
-        for i in 0..secret_shares_vec.len() {
-            if parties_in.iter().find(|&&x| x == i).is_some() {
-                new_xi = new_xi + &secret_shares_vec[i]
-            }
-        }
-        SharedKeys {
-            y: shared_key.y.clone(),
-            x_i: new_xi,
-        }
-    }
-}
-
-pub struct LocalSig {
-    gamma_i: FE,
-    e: FE,
-}
-
-impl LocalSig {
-    /*
- t.proto_name(b"Schnorr-sig");
-    t.commit_point(b"sign:pk",public_key.as_compressed());
-
-    let mut r = t.witness_scalar(b"signing",&[&self.nonce]);  // context, message, A/public_key
-    let R = (&r * &constants::RISTRETTO_BASEPOINT_TABLE).compress();
-
-    t.commit_point(b"sign:R",&R);
-
-    let k: Scalar = t.challenge_scalar(b"sign:c");  // context, message, A/public_key, R=rG
-    let s: Scalar = &(&k * &self.key) + &r;*/
-    #[allow(non_snake_case)]
-    pub fn compute(
-        message: &[u8],
-        local_ephemeral_key: &SharedKeys,
-        local_private_key: &SharedKeys,
-    ) -> LocalSig {
-        let beta_i = local_ephemeral_key.x_i.clone();
-        let alpha_i = local_private_key.x_i.clone();
-
-        let message_len_bits = message.len() * 8;
-        let R = local_ephemeral_key.y.bytes_compressed_to_big_int();
-        let X = local_private_key.y.bytes_compressed_to_big_int();
-        let X_vec = BigInt::to_vec(&X);
-        let X_vec_len_bits = X_vec.len() * 8;
-        let e_bn = HSha256::create_hash_from_slice(
-            &BigInt::to_vec(
-                &((((R << X_vec_len_bits) + X) << message_len_bits) + BigInt::from(message)),
-            )[..],
-        );
-
-        let e: FE = ECScalar::from(&e_bn);
-        let gamma_i = beta_i + e.clone() * alpha_i;
-
-        LocalSig { gamma_i, e }
-    }
-
-    // section 4.2 step 3
-    #[allow(unused_doc_comments)]
-    pub fn verify_local_sigs(
-        gamma_vec: &Vec<LocalSig>,
-        parties_index_vec: &[usize],
-        vss_private_keys: &Vec<VerifiableSS<GE>>,
-        vss_ephemeral_keys: &Vec<VerifiableSS<GE>>,
-    ) -> Result<VerifiableSS<GE>, Error> {
-        //parties_index_vec is a vector with indices of the parties that are participating and provided gamma_i for this step
-        // test that enough parties are in this round
-        assert!(parties_index_vec.len() > vss_private_keys[0].parameters.threshold);
-
-        // Vec of joint commitments:
-        // n' = num of signers, n - num of parties in keygen
-        // [com0_eph_0,... ,com0_eph_n', e*com0_kg_0, ..., e*com0_kg_n ;
-        // ...  ;
-        // comt_eph_0,... ,comt_eph_n', e*comt_kg_0, ..., e*comt_kg_n ]
-        let comm_vec = (0..vss_private_keys[0].parameters.threshold + 1)
-            .map(|i| {
-                let mut key_gen_comm_i_vec = (0..vss_private_keys.len())
-                    .map(|j| vss_private_keys[j].commitments[i].clone() * &gamma_vec[i].e)
-                    .collect::<Vec<GE>>();
-                let mut eph_comm_i_vec = (0..vss_ephemeral_keys.len())
-                    .map(|j| vss_ephemeral_keys[j].commitments[i].clone())
-                    .collect::<Vec<GE>>();
-                key_gen_comm_i_vec.append(&mut eph_comm_i_vec);
-                let mut comm_i_vec_iter = key_gen_comm_i_vec.iter();
-                let comm_i_0 = comm_i_vec_iter.next().unwrap();
-                comm_i_vec_iter.fold(comm_i_0.clone(), |acc, x| acc + x)
-            })
-            .collect::<Vec<GE>>();
-
-        let vss_sum = VerifiableSS {
-            parameters: vss_ephemeral_keys[0].parameters.clone(),
-            commitments: comm_vec,
-        };
-
-        let g: GE = GE::generator();
-        let correct_ss_verify = (0..parties_index_vec.len())
-            .map(|i| {
-                let gamma_i_g = &g * &gamma_vec[i].gamma_i;
-                vss_sum
-                    .validate_share_public(&gamma_i_g, parties_index_vec[i] + 1)
-                    .is_ok()
-            })
-            .collect::<Vec<bool>>();
-
-        match correct_ss_verify.iter().all(|x| x.clone() == true) {
-            true => Ok(vss_sum),
-            false => Err(InvalidSS),
-        }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signature {
     pub sigma: FE,
     pub v: GE,
 }
 
-impl Signature {
+#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct SigRound1Message {
+    sender_id: usize,
+    session_id: String,
+    ephemeral:  GE,
+}
 
 
-    pub fn generate(
-        vss_sum_local_sigs: &VerifiableSS<GE>,
-        local_sig_vec: &Vec<LocalSig>,
-        parties_index_vec: &[usize],
-        v: GE,
-    ) -> Signature {
-        let gamma_vec = (0..parties_index_vec.len())
-            .map(|i| local_sig_vec[i].gamma_i.clone())
-            .collect::<Vec<FE>>();
-        let reconstruct_limit = vss_sum_local_sigs.parameters.threshold.clone() + 1;
-        let sigma = vss_sum_local_sigs.reconstruct(
-            &parties_index_vec[0..reconstruct_limit.clone()],
-            &gamma_vec[0..reconstruct_limit.clone()],
-        );
-        Signature { sigma, v }
+#[derive(Default, Clone,Hash, Eq, PartialEq, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct SigRound2Message {
+    sender_id: usize,
+    r_comp:Vec<u8>,
+    sigma_i:Vec<u8>,
+ }
+#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize)]
+pub struct SigRound3Message {
+    sender_id: usize,
+    signature: Signature,
+}
+
+impl SchnorkellKey {
+    pub fn get_poly(&self) ->VerifiableSS<GE> {
+        serde_json::from_slice(&self.poly).unwrap()
     }
 
+    pub fn signRound1(&mut self, session_id : String, message : &Vec<u8>) ->Result<SigRound1Message,Error> {
+        self.ephemeral_i = ECScalar::new_random();
+        self.ephemeral = &ECPoint::generator() * &self.ephemeral_i;
+        self.message = message.clone();
+
+        Ok(SigRound1Message{
+            sender_id: self.player_id.clone(),
+            session_id: session_id.clone(),
+            ephemeral: self.ephemeral.clone()
+        })
+    }
+    pub fn signRound2(&mut self, round1s: &[SigRound1Message]) ->Result<SigRound2Message,Error> {
+        //shared random R= Sum (R_i)
+        self.ephemeral = round1s.iter().fold(self.ephemeral.clone(),|acc, next| acc + next.ephemeral);
+
+        let r_comp =  self.ephemeral.bytes_compressed_to_big_int();
+        //modify this for schnorkell
+        let m = HSha256::create_hash_from_slice(
+            &self.message[..],
+        );
+        let k: FE = ECScalar::from(&m);
+        let sigma_i = self.ephemeral_i + k * self.share.clone();
+
+        self.sigma_i = sigma_i.clone();
+
+        Ok(SigRound2Message{
+            sender_id: self.player_id.clone(),
+            r_comp:BigInt::to_vec(&r_comp),
+            sigma_i:serde_json::to_vec(&sigma_i).unwrap(),
+         })
+    }
+    pub fn signRound3(&mut self,  round2s: &[SigRound2Message]) ->Result<SigRound3Message,Error> {
+        let mut indices = vec![self.player_id];
+        let mut shares = vec![self.sigma_i];
+
+        round2s.iter().map(|next| {
+            indices.push(next.sender_id);
+            let sigma_i: FE= serde_json::from_slice(&next.sigma_i).unwrap();
+            shares.push(sigma_i);
+            true
+        }).all(|x|x== true);
+
+        let poly = self.get_poly();
+        let sigma = poly.reconstruct(indices.as_slice(),shares.as_slice());
+
+        Ok(SigRound3Message{
+            sender_id: self.player_id.clone(),
+            signature: Signature{ sigma: sigma, v: self.ephemeral }
+        })
+    }
+
+}
+
+pub fn NewDkgGen(session_id: String, player_id: usize, t: usize, n: usize) -> DkgGen{
+    DkgGen{
+        session_id: session_id.clone(),
+        player_id:player_id.clone(),
+        params: Parameters {
+            threshold: t.clone(),
+            share_count: n.clone(),
+        },
+        players: Default::default(),
+        vss: VerifiableSS{ parameters: ShamirSecretSharing { threshold: t.clone(), share_count: n.clone()}, commitments: vec![] },
+        shares: Default::default(),
+        vss2: VerifiableSS{ parameters: ShamirSecretSharing { threshold: t.clone(), share_count: n.clone()}, commitments: vec![] },
+        shares2: Default::default(),
+        key: SchnorkellKey{
+            share: FE::zero(),
+            public_key: GE::generator(),
+            player_id: player_id.clone(),
+            poly: vec![],
+            ephemeral_i: FE::zero(),
+            sigma_i: FE::zero(),
+            ephemeral: GE::generator(),
+            message: vec![]
+        }
+    }
+}
+impl DkgGen {
+    pub fn round1(&mut self, parties: &[usize]) -> Result<Round1Message, Error> {
+         let (vss, share) = VerifiableSS::share_at_indices(
+            self.params.threshold,
+            self.params.share_count,
+            &ECScalar::new_random(),
+            &parties,
+        );
+        self.vss = vss;
+
+        let ( vss2,  share2) = VerifiableSS::share_at_indices(
+            self.params.threshold,
+            self.params.share_count,
+            &ECScalar::new_random(),
+            &parties,
+        );
+        self.vss2 = vss2;
+
+        (0..parties.len()).map(|i| {
+            self.shares.insert(parties[i],share[i]);
+            self.shares2.insert(parties[i],share2[i]);
+            true
+        }).all(|x| x == true);
+
+        let ckVec = (0..self.vss.commitments.len()).map(
+            |i|{
+                self.vss.commitments[i] + self.vss2.commitments[i]
+            }
+        ).collect::<Vec<GE>>();
+        let sumPoly = VerifiableSS { parameters: self.vss.parameters.clone(), commitments: ckVec };
+        let sumPolyStr = serde_json::to_string(&sumPoly).unwrap();
+
+        Ok(Round1Message {
+            sender_id: self.player_id.clone(),
+            session_id: self.session_id.clone(),
+            ck: sumPolyStr.as_bytes().to_vec(),
+        })
+    }
+     pub fn round2(&mut self, round1s: &[Round1Message]) ->Result<Vec<Round2Message>,Error>{
+        let sessionCheck: bool = round1s.iter().map(|next|{
+            self.session_id == next.session_id
+        }) .all(|x| x == true);
+        assert!(sessionCheck,"not the same session");
+
+        round1s.into_iter().map(|next|{
+            let mut player = Player::default();
+            player.round1 = next.clone();
+            self.players.insert(next.sender_id,player);
+            true
+        }).all(|x| x == true);
+
+         let result = round1s.iter().map( |next| {
+             let mut r2 = Round2Message::default();
+             r2.sender_id = self.player_id.clone();
+             r2.receiver_id = next.sender_id.clone();
+             r2.session_id = next.session_id.clone();
+             r2.vcf = serde_json::to_vec(&self.vss).unwrap();
+
+             r2.vs = serde_json::to_vec(&self.shares.get(&next.sender_id)).unwrap(); //should be encrypted
+             r2.vs2 = serde_json::to_vec(&self.shares2.get(&next.sender_id)).unwrap(); //should be encrypted
+             r2
+         }).collect::<Vec<Round2Message>>();
+
+         Ok(
+             result
+         )
+    }
+    pub fn round3(&mut self, round2s: Vec<Round2Message>) -> Result<Round3Message,Error> {
+        let mut shareFinal = FE::zero();
+        let mut commitment = self.vss.commitments.clone();
+
+        let check = round2s.iter().map(|next| {
+            let player = self.players.get_mut(&next.sender_id).unwrap();
+
+            let share: FE = serde_json::from_slice(&next.vs).unwrap();
+            let sim_share: FE = serde_json::from_slice(&next.vs2).unwrap();
+            let sum_share = share + sim_share;
+
+            let poly:VerifiableSS<GE> = serde_json::from_slice(&next.vcf).unwrap();
+            let sumPoly:VerifiableSS<GE> = serde_json::from_slice(&player.round1.ck).unwrap();
+
+            let val_share = poly.validate_share(&share, self.player_id).is_ok();
+            let val_sumshare = sumPoly.validate_share(&sum_share, self.player_id).is_ok();
+            player.round2 = next.clone();
+            shareFinal = shareFinal + &share;
+
+            commitment = (0..commitment.len()).map(|i|{
+                commitment[i] + poly.commitments[i]
+            }).collect::<Vec<GE>>();
+
+            val_share && val_sumshare
+        }).all(|x|x == true);
+
+        if !check {
+            return Err(InvalidSS);
+        }
+
+        shareFinal = shareFinal + self.shares.get(&self.player_id).unwrap();
+        let polyFinal = VerifiableSS{ parameters: self.vss.parameters.clone(), commitments: commitment.clone() };
+        let check = polyFinal.validate_share(&shareFinal, self.player_id).is_ok();
+
+        if !check {
+            return Err(InvalidSS);
+        }
+
+        self.key.poly = serde_json::to_vec(&polyFinal).unwrap();
+        self.key.share = shareFinal;
+        self.key.public_key = polyFinal.get_point_commitment(0);
+
+        Ok(Round3Message {
+            sender_id: self.player_id.clone(),
+            session_id: self.session_id.clone(),
+            public_key: self.key.public_key.pk_to_key_slice()
+        })
+    }
+}
+
+impl Signature {
     pub fn verify(&self, message: &[u8], pubkey_y: &GE) -> Result<(), Error> {
         let e_bn = HSha256::create_hash(&[
             &self.v.bytes_compressed_to_big_int(),
