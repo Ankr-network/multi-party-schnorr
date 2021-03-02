@@ -8,7 +8,7 @@ use curv::elliptic::curves::traits::ECPoint;
 #[test]
 #[allow(unused_doc_comments)]
 fn test_t2_n4_with_new() {
-    let t =  2;
+    let t = 2;
     let n = 4;
     let mut client1 = NewDkgGen( "session 1".into(), 1, t, n);
     let mut client2 = NewDkgGen( "session 1".into(), 2, t, n);
@@ -47,7 +47,21 @@ fn test_t2_n4_with_new() {
     assert!(round33.is_ok());
     assert!(round43.is_ok());
 
+
+    //let key1 = &client1.key;
+    let key2 = &client2.key;
+    let key3 = &client3.key;
+    let key4 = &client4.key;
     let pubKey = round13.unwrap().public_key;
+
+    let secret = client1.recover(&[key3.player_id-1,key2.player_id-1,key4.player_id-1], &vec![key3.share.clone(),key2.share.clone(),key4.share.clone()]);
+
+    let pubKey2 = GE::generator() * &secret;
+
+    println!("secret: {:?}",secret);
+    println!("pubKey: {:?}",pubKey);
+    println!("pubKey2: {:?}",pubKey2);
+
 
     println!("Public Key: 0x{}", round23.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
     println!("Public Key: 0x{}", round33.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
@@ -88,14 +102,8 @@ fn test_t2_n4_with_new() {
     let signature = signRound3.signature;
 
 
-    let secret = key1.share + key2.share + key3.share+ (&client4.key).share;
 
-    let publicKey2  = &ECPoint::generator() * &secret;
-    println!("pubKey {:?}",pubKey);
-    println!("pubKey2 {:?}",publicKey2);
-
-
-    assert!(signature.verify(&message, &pubKey).is_ok(),"invalid signature");
+    assert!(signature.verify(&message, &pubKey2).is_ok(),"invalid signature");
 
 }
 

@@ -148,16 +148,16 @@ impl SchnorkellKey {
         })
     }
     pub fn signRound3(&mut self, round2s: &[SigRound2Message]) -> Result<SigRound3Message, Error> {
-        let mut indices = vec![self.player_id];
-        let mut shares = vec![self.sigma_i];
+        let mut indices = vec![self.player_id-1];
+        let mut shares = vec![self.sigma_i.clone()];
 
         round2s.iter().map(|next| {
-            indices.push(next.sender_id);
-            shares.push(next.sigma_i);
+            indices.push(next.sender_id-1);
+            shares.push(next.sigma_i.clone());
             true
         }).all(|x| x == true);
 
-        let sigma = self.poly.reconstruct(indices.as_slice(), shares.as_slice());
+        let sigma = self.poly.reconstruct(&indices.as_slice(), &shares);
 
         Ok(SigRound3Message {
             sender_id: self.player_id.clone(),
@@ -178,11 +178,13 @@ impl Signature {
         let k = ECScalar::from(&kt2);
 
 
-        let P:GE = ECPoint::generator();
+        let P = GE::generator();
         let Rprime = &P * &self.s + pubKey * &k;
 
-        println!("Rprime: {:?}", Rprime);
-        println!("R: {:?}", self.R);
+        println!("{:?}",self.s);
+        println!("Rprime: {}", Rprime.bytes_compressed_to_big_int().to_hex());
+        println!("R: {}", self.R.bytes_compressed_to_big_int().to_hex());
+
         if Rprime == self.R {
             Ok(())
         } else {
@@ -219,18 +221,20 @@ pub fn NewDkgGen(session_id: String, player_id: usize, t: usize, n: usize) -> Dk
 
 impl DkgGen {
     pub fn round1(&mut self, parties: &[usize]) -> Result<Round1Message, Error> {
+        let secret = ECScalar::new_random();
         let (vss, share) = VerifiableSS::share_at_indices(
             self.params.threshold,
             self.params.share_count,
-            &ECScalar::new_random(),
+            &secret,
             &parties,
         );
         self.vss = vss;
+        let secret = ECScalar::new_random();
 
         let (vss2, share2) = VerifiableSS::share_at_indices(
             self.params.threshold,
             self.params.share_count,
-            &ECScalar::new_random(),
+            &secret,
             &parties,
         );
         self.vss2 = vss2;
@@ -332,13 +336,18 @@ impl DkgGen {
 
         self.key.poly = polyFinal.clone();
         self.key.share = shareFinal;
-        self.key.public_key = polyFinal.get_point_commitment(0);
+
+        self.key.public_key = polyFinal.commitments[0].clone();
 
         Ok(Round3Message {
             sender_id: self.player_id.clone(),
             session_id: self.session_id.clone(),
             public_key: self.key.public_key.clone(),
         })
+    }
+
+    pub fn recover(& self, indices : &[usize], shares: &[FE])->FE{
+        self.vss.reconstruct(indices,shares)
     }
 }
 
