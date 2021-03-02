@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 
-use protocols::thresholdsig::tschnorrkel::*;
+use protocols::thresholdsig::schnorrkel::*;
 use curv::elliptic::curves::traits::ECPoint;
 
 
@@ -11,11 +11,11 @@ fn test_t2_n4_with_new() {
     let t = 2;
     let n = 4;
     let mut client1 = NewDkgGen( "session 1".into(), 1, t, n);
-    let mut client2 = NewDkgGen( "session 1".into(), 2, t, n);
-    let mut client3 = NewDkgGen( "session 1".into(), 3, t, n);
-    let mut client4 = NewDkgGen( "session 1".into(), 4, t, n);
+    let mut client2 = NewDkgGen( "session 1".into(), 3, t, n);
+    let mut client3 = NewDkgGen( "session 1".into(), 5, t, n);
+    let mut client4 = NewDkgGen( "session 1".into(), 7, t, n);
 
-    let parties  = [1,2,3,4];
+    let parties  = [1,3,5,7];
 
     let round11 = client1.round1(&parties);
     let round21 = client2.round1(&parties);
@@ -54,7 +54,7 @@ fn test_t2_n4_with_new() {
     let key4 = &client4.key;
     let pubKey = round13.unwrap().public_key;
 
-    let secret = client1.recover(&[key3.player_id-1,key2.player_id-1,key4.player_id-1], &vec![key3.share.clone(),key2.share.clone(),key4.share.clone()]);
+    let secret = client1.recover(&[key3.player_id-1,key2.player_id-1,key4.player_id-1].to_vec(), &vec![key3.share.clone(),key2.share.clone(),key4.share.clone()]);
 
     let pubKey2 = GE::generator() * &secret;
 
@@ -100,8 +100,6 @@ fn test_t2_n4_with_new() {
 
     let signRound3 = signRound13.unwrap();
     let signature = signRound3.signature;
-
-
 
     assert!(signature.verify(&message, &pubKey2).is_ok(),"invalid signature");
 

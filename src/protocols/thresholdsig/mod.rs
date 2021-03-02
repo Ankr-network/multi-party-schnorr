@@ -17,7 +17,7 @@
 pub mod bitcoin_schnorr;
 mod test_bitcoin;
 mod test_zilliqa;
-mod test_tschnorrkel;
+mod test_schnorrkel;
 
 /// Schnorr signature variants:
 /// Elliptic Curve Schnorr signatures for message m and public key P generally involve
@@ -38,6 +38,6 @@ pub mod zilliqa_schnorr;
 /// k = scalar(m)
 /// s = kx + r
 /// Signatures are (R,s) that satisfy sG = R + kP.
-pub mod tschnorrkel;
-mod test_scnorrkell;
+pub mod schnorrkel;
+mod test_normalscnorrkell;
 

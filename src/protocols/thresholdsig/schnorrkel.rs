@@ -23,10 +23,10 @@ pub struct DkgGen {
     pub params: Parameters,
     pub players: HashMap<usize, Player>,
     pub vss: VerifiableSS<GE>,
-    pub shares: HashMap<usize, FE>,
     // real share
-    pub shares2: HashMap<usize, FE>,
+    pub shares: HashMap<usize, FE>,
     //simulated share
+    pub shares2: HashMap<usize, FE>,
     pub vss2: VerifiableSS<GE>,
     pub key: SchnorkellKey,
 }
@@ -159,9 +159,12 @@ impl SchnorkellKey {
 
         let sigma = self.poly.reconstruct(&indices.as_slice(), &shares);
 
+        println!("indices {:?}",indices);
+        println!("indices {:?}",indices.as_slice());
+
         Ok(SigRound3Message {
             sender_id: self.player_id.clone(),
-            signature: Signature { s: sigma, R: self.R },
+            signature: Signature { s: sigma, R: self.R.clone() },
         })
     }
 }
@@ -182,8 +185,8 @@ impl Signature {
         let Rprime = &P * &self.s + pubKey * &k;
 
         println!("{:?}",self.s);
-        println!("Rprime: {}", Rprime.bytes_compressed_to_big_int().to_hex());
-        println!("R: {}", self.R.bytes_compressed_to_big_int().to_hex());
+        println!("R': {}", Rprime.bytes_compressed_to_big_int().to_hex());
+        println!("R : {}", self.R.bytes_compressed_to_big_int().to_hex());
 
         if Rprime == self.R {
             Ok(())
@@ -346,7 +349,7 @@ impl DkgGen {
         })
     }
 
-    pub fn recover(& self, indices : &[usize], shares: &[FE])->FE{
+    pub fn recover(& self, indices : &[usize], shares: &Vec<FE>)->FE{
         self.vss.reconstruct(indices,shares)
     }
 }
