@@ -2,7 +2,10 @@
 
 
 use protocols::thresholdsig::schnorrkel::*;
-use curv::elliptic::curves::traits::ECPoint;
+use curv::elliptic::curves::traits::{ECPoint, ECScalar};
+use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
+use curv::cryptographic_primitives::hashing::traits::Hash;
+type FE = curv::elliptic::curves::curve_ristretto::FE;
 
 
 #[test]
@@ -55,8 +58,8 @@ fn test_t2_n4_with_new() {
     let pubKey = round13.unwrap().public_key;
 
     let secret = client1.recover(&[key3.player_id-1,key2.player_id-1,key4.player_id-1].to_vec(), &vec![key3.share.clone(),key2.share.clone(),key4.share.clone()]);
-
-    let pubKey2 = GE::generator() * &secret;
+    let G:GE =  ECPoint::generator();
+    let pubKey2 = G.clone() * &secret;
 
     println!("secret: {:?}",secret);
     println!("pubKey: {:?}",pubKey);
@@ -100,6 +103,19 @@ fn test_t2_n4_with_new() {
 
     let signRound3 = signRound13.unwrap();
     let signature = signRound3.signature;
+
+    let r = key1.r_i + key2.r_i + key3.r_i;
+
+    let m = HSha256::create_hash_from_slice(
+        &message[..],
+    );
+
+    let k:FE = ECScalar::from(&m);
+
+    let sigma = r + secret * k;
+
+    println!("sigma {:?}",sigma);
+    println!("sigma {:?}",signature.s);
 
     assert!(signature.verify(&message, &pubKey2).is_ok(),"invalid signature");
 

@@ -74,9 +74,9 @@ pub struct SchnorkellKey {
     pub player_id: usize,
     pub poly: VerifiableSS<GE>,
 
-    r_i: FE,
-    R: GE,
-    sigma_i: FE,
+    pub r_i: FE,
+    pub R: GE,
+    pub sigma_i: FE,
     message: Vec<u8>,
 }
 
@@ -117,8 +117,10 @@ pub struct SigRound3Message {
 impl SchnorkellKey {
 
      pub fn signRound1(&mut self, session_id: String, message: &Vec<u8>) -> Result<SigRound1Message, Error> {
-        self.r_i = ECScalar::new_random();
-        self.R = &ECPoint::generator() * &self.r_i;
+         let G :GE =  ECPoint::generator();
+
+         self.r_i = ECScalar::new_random();
+        self.R = G.clone() * &self.r_i;
         self.message = message.clone();
 
         Ok(SigRound1Message {
@@ -157,10 +159,10 @@ impl SchnorkellKey {
             true
         }).all(|x| x == true);
 
-        let sigma = self.poly.reconstruct(&indices.as_slice(), &shares);
+        let reconstruct_limit = self.poly.parameters.threshold + 1;
 
-        println!("indices {:?}",indices);
-        println!("indices {:?}",indices.as_slice());
+        let sigma = self.poly.reconstruct(&indices.as_slice()[0..reconstruct_limit.clone()], &shares[0..reconstruct_limit.clone()]);
+
 
         Ok(SigRound3Message {
             sender_id: self.player_id.clone(),
@@ -171,7 +173,7 @@ impl SchnorkellKey {
 
 impl Signature {
     pub fn verify(&self, message: &[u8], pubKey: &GE) -> Result<(), Error> {
-        //modify this with schnorkell constructions
+        //modify this with scnorrkel constructions
         let m = HSha256::create_hash_from_slice(
             &message[..],
         );
@@ -181,10 +183,9 @@ impl Signature {
         let k = ECScalar::from(&kt2);
 
 
-        let P = GE::generator();
-        let Rprime = &P * &self.s + pubKey * &k;
+        let P :GE = ECPoint::generator();
+        let Rprime:GE = P.clone() * &self.s + pubKey * &k;
 
-        println!("Sigma{:?}",self.s);
         println!("R': {}", Rprime.bytes_compressed_to_big_int().to_hex());
         println!("R : {}", self.R.bytes_compressed_to_big_int().to_hex());
 
@@ -349,7 +350,7 @@ impl DkgGen {
         })
     }
 
-    pub fn recover(& self, indices : &[usize], shares: &Vec<FE>)->FE{
+    pub fn recover(&self, indices : &[usize], shares: &Vec<FE>)->FE{
         self.vss.reconstruct(indices,shares)
     }
 }
