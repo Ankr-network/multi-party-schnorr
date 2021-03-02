@@ -184,7 +184,7 @@ impl Signature {
         let P = GE::generator();
         let Rprime = &P * &self.s + pubKey * &k;
 
-        println!("{:?}",self.s);
+        println!("Sigma{:?}",self.s);
         println!("R': {}", Rprime.bytes_compressed_to_big_int().to_hex());
         println!("R : {}", self.R.bytes_compressed_to_big_int().to_hex());
 
