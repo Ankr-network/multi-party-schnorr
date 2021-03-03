@@ -2,10 +2,7 @@
 
 
 use protocols::thresholdsig::schnorrkel::*;
-use curv::elliptic::curves::traits::{ECPoint, ECScalar};
-use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
-use curv::cryptographic_primitives::hashing::traits::Hash;
-type FE = curv::elliptic::curves::curve_ristretto::FE;
+use curv::elliptic::curves::traits::{ECPoint};
 
 
 #[test]
@@ -75,11 +72,13 @@ fn test_t2_n4_with_new() {
     let mut key2 = client2.get_share();
     let mut key3 = client3.get_share();
 
+    let signParties  = [1,3,5];
+
     let message :[u8;4] = [21,24,25,26];
 
-    let signRound11 = key1.signRound1("session 1".to_string(),&message.to_vec());
-    let signRound21 = key2.signRound1("session 1".to_string(),&message.to_vec());
-    let signRound31 = key3.signRound1("session 1".to_string(),&message.to_vec());
+    let signRound11 = key1.signRound1("session 1".to_string(),&message.to_vec(),&signParties);
+    let signRound21 = key2.signRound1("session 1".to_string(),&message.to_vec(),&signParties);
+    let signRound31 = key3.signRound1("session 1".to_string(),&message.to_vec(),&signParties);
 
     assert!(signRound11.is_ok());
     assert!(signRound21.is_ok());
@@ -93,31 +92,26 @@ fn test_t2_n4_with_new() {
     assert!(signRound22.is_ok());
     assert!(signRound32.is_ok());
 
-    let signRound13 = key1.signRound3(&[signRound22.clone().unwrap(),signRound32.clone().unwrap()]);
-    let signRound23 = key2.signRound3(&[signRound12.clone().unwrap(),signRound32.clone().unwrap()]);
-    let signRound33 = key3.signRound3(&[signRound12.clone().unwrap(),signRound22.clone().unwrap()]);
+    let signRound13 = key1.signRound3(filter2(key1.player_id, signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()));
+    let signRound23 = key2.signRound3(filter2(key2.player_id, signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()));
+    let signRound33 = key3.signRound3(filter2(key3.player_id, signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()));
+
 
     assert!(signRound13.is_ok());
     assert!(signRound23.is_ok());
     assert!(signRound33.is_ok());
 
-    let signRound3 = signRound13.unwrap();
-    let signature = signRound3.signature;
+    let signRound14 = key1.signRound4(&vec![signRound23.clone().unwrap(),signRound33.clone().unwrap()]);
+    let signRound24 = key2.signRound4(&vec![signRound13.clone().unwrap(),signRound33.clone().unwrap()]);
+    let signRound34 = key3.signRound4(&vec![signRound13.clone().unwrap(),signRound23.clone().unwrap()]);
 
-    let r = key1.r_i + key2.r_i + key3.r_i;
+    assert!(signRound14.is_ok());
+    assert!(signRound24.is_ok());
+    assert!(signRound34.is_ok());
 
-    let m = HSha256::create_hash_from_slice(
-        &message[..],
-    );
+    let signature =signRound14.unwrap();
+    assert!(signature.verify(&message,&pubKey).is_ok(), "not verified")
 
-    let k:FE = ECScalar::from(&m);
-
-    let sigma = r + secret * k;
-
-    println!("sigma {:?}",sigma);
-    println!("sigma {:?}",signature.s);
-
-    assert!(signature.verify(&message, &pubKey2).is_ok(),"invalid signature");
 
 }
 
@@ -135,6 +129,22 @@ pub fn filter(player_id: usize, c1: Vec<Round2Message>,c2: Vec<Round2Message>,c3
     if item.is_some() {result.push(item.unwrap())};
 
     let item = c4.into_iter().find(|x|x.receiver_id == player_id);
+    if item.is_some() {result.push(item.unwrap())};
+
+    result
+
+}
+pub fn filter2(player_id: usize, c1: Vec<Round2Message>,c2: Vec<Round2Message>,c3: Vec<Round2Message>) -> Vec<Round2Message> {
+
+    let mut result:Vec<Round2Message> = vec![];
+
+    let item = c1.into_iter().find(|x|x.receiver_id == player_id);
+    if item.is_some() {result.push(item.unwrap())};
+
+    let item = c2.into_iter().find(|x|x.receiver_id == player_id);
+    if item.is_some() {result.push(item.unwrap())};
+
+    let item = c3.into_iter().find(|x|x.receiver_id == player_id);
     if item.is_some() {result.push(item.unwrap())};
 
     result
