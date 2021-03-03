@@ -17,7 +17,7 @@ use std::fmt::Debug;
 pub(crate) type GE = curv::elliptic::curves::curve_ristretto::GE;
 type FE = curv::elliptic::curves::curve_ristretto::FE;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DkrGen {
     pub session_id: String,
     pub player_id: usize,
@@ -97,7 +97,7 @@ impl Default for Round3Message {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Player {
     pub round1: Round1Message,
     pub round2: Round2Message,
@@ -105,7 +105,7 @@ pub struct Player {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct SchnorkellKey {
     pub share: FE,
     pub public_key: GE,
@@ -116,6 +116,7 @@ pub struct SchnorkellKey {
     pub R: GE,
     pub sigma_i: FE,
     message: Vec<u8>,
+    pub dkr: DkrGen,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -256,7 +257,8 @@ impl DkrGen {
             r_i: FE::zero(),
             R: GE::generator(),
             sigma_i: FE::zero(),
-            message: vec![]
+            message: vec![],
+            dkr: Default::default()
         }
     }
     pub fn round1(&mut self, parties: &[usize]) -> Result<Round1Message, Error> {
