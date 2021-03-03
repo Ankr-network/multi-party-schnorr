@@ -13,10 +13,10 @@ type FE = curv::elliptic::curves::curve_ristretto::FE;
 fn test_t2_n4_with_new() {
     let t = 2;
     let n = 4;
-    let mut client1 = NewDkgGen( "session 1".into(), 1, t, n);
-    let mut client2 = NewDkgGen( "session 1".into(), 3, t, n);
-    let mut client3 = NewDkgGen( "session 1".into(), 5, t, n);
-    let mut client4 = NewDkgGen( "session 1".into(), 7, t, n);
+    let mut client1 = NewDrgGen("session 1".into(), 1, t, n);
+    let mut client2 = NewDrgGen("session 1".into(), 3, t, n);
+    let mut client3 = NewDrgGen("session 1".into(), 5, t, n);
+    let mut client4 = NewDrgGen("session 1".into(), 7, t, n);
 
     let parties  = [1,3,5,7];
 
@@ -52,9 +52,9 @@ fn test_t2_n4_with_new() {
 
 
     //let key1 = &client1.key;
-    let key2 = &client2.key;
-    let key3 = &client3.key;
-    let key4 = &client4.key;
+    let key2 = &client2.get_share();
+    let key3 = &client3.get_share();
+    let key4 = &client4.get_share();
     let pubKey = round13.unwrap().public_key;
 
     let secret = client1.recover(&[key3.player_id-1,key2.player_id-1,key4.player_id-1].to_vec(), &vec![key3.share.clone(),key2.share.clone(),key4.share.clone()]);
@@ -71,9 +71,9 @@ fn test_t2_n4_with_new() {
     println!("Public Key: 0x{}", round43.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
 
 
-    let mut key1 = client1.key;
-    let mut key2 = client2.key;
-    let mut key3 = client3.key;
+    let mut key1 = client1.get_share();
+    let mut key2 = client2.get_share();
+    let mut key3 = client3.get_share();
 
     let message :[u8;4] = [21,24,25,26];
 
