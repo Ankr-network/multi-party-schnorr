@@ -48,24 +48,9 @@ fn test_t2_n4_with_new() {
     assert!(round43.is_ok());
 
 
-    //let key1 = &client1.key;
-    let key2 = &client2.get_share();
-    let key3 = &client3.get_share();
-    let key4 = &client4.get_share();
     let pubKey = round13.unwrap().public_key;
 
-    let secret = client1.recover(&[key3.player_id-1,key2.player_id-1,key4.player_id-1].to_vec(), &vec![key3.share.clone(),key2.share.clone(),key4.share.clone()]);
-    let G:GE =  ECPoint::generator();
-    let pubKey2 = G.clone() * &secret;
-
-    println!("secret: {:?}",secret);
-    println!("pubKey: {:?}",pubKey);
-    println!("pubKey2: {:?}",pubKey2);
-
-
-    println!("Public Key: 0x{}", round23.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
-    println!("Public Key: 0x{}", round33.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
-    println!("Public Key: 0x{}", round43.unwrap().public_key.bytes_compressed_to_big_int().to_hex());
+    println!("Public Key: 0x{}", pubKey.bytes_compressed_to_big_int().to_hex());
 
 
     let mut key1 = client1.get_share();

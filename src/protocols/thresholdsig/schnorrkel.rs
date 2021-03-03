@@ -165,26 +165,6 @@ impl SchnorkellKey {
         self.dkr.round2(round1s)
     }
 
-    /*pub fn signRound2x(&mut self, round1s: &[SigRound1Message]) -> Result<SigRound2Message, Error> {
-        //shared random R= Sum (R_i)
-        self.R = round1s.iter().fold(self.R.clone(), |acc, next| acc + next.R_i);
-
-        //modify this for schnorkell
-        let m = HSha256::create_hash_from_slice(
-            &self.message[..],
-        );
-
-        let k: FE = ECScalar::from(&m);
-        let sigma_i = self.r_i + k * self.share.clone();
-
-        self.sigma_i = sigma_i.clone();
-
-        Ok(SigRound2Message {
-            sender_id: self.player_id.clone(),
-            R: self.R,
-            sigma_i: sigma_i.clone(),
-        })
-    }*/
     pub fn signRound3(&mut self, round2s: Vec<Round2Message>) -> Result<SigRound3Message, Error> {
         let result = self.dkr.round3(round2s);
 
@@ -220,7 +200,14 @@ impl SchnorkellKey {
 
         let sigma = self.poly.reconstruct(&indices.as_slice()[0..reconstruct_limit.clone()], &shares[0..reconstruct_limit.clone()]);
 
-        Ok(Signature{ s: sigma, R: self.R.clone()})
+        let signature = Signature{ s: sigma, R: self.R.clone()};
+
+        if signature.verify(&self.message,&self.public_key).is_ok() {
+            Ok(signature)
+        }else {
+            Err(InvalidSig)
+        }
+
     }
 }
 
@@ -238,9 +225,6 @@ impl Signature {
 
         let P: GE = ECPoint::generator();
         let Rprime: GE = P.clone() * &self.s + pubKey * &k;
-
-        println!("R': {}", Rprime.bytes_compressed_to_big_int().to_hex());
-        println!("R : {}", self.R.bytes_compressed_to_big_int().to_hex());
 
         if Rprime == self.R {
             Ok(())
