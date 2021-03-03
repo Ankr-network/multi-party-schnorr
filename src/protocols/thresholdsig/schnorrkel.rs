@@ -188,10 +188,8 @@ impl SchnorkellKey {
     pub fn signRound3(&mut self, round2s: Vec<Round2Message>) -> Result<SigRound3Message, Error> {
         let result = self.dkr.round3(round2s);
 
-        println!("{:?}",result);
-
         let r_i = self.dkr.keyShare;
-        self.R = self.dkr.publicKey;
+        self.R = result.unwrap().public_key;
         //modify this for schnorkell
         let m = HSha256::create_hash_from_slice(
             &self.message[..],
@@ -217,8 +215,6 @@ impl SchnorkellKey {
             shares.push(next.sigma_i.clone());
             true
         }).all(|x| x == true);
-
-        println!("{:?}",round3s);
 
         let reconstruct_limit = self.poly.parameters.threshold + 1;
 
