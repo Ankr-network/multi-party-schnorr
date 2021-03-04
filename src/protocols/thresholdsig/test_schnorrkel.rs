@@ -39,10 +39,10 @@ fn test_t2_n4_with_new() {
     assert!(round32.is_ok());
     assert!(round42.is_ok());
 
-    let round13 = client1.round3(filter(client1.player_id, round12.clone().unwrap(),round22.clone().unwrap(),round32.clone().unwrap(),round42.clone().unwrap()));
-    let round23 = client2.round3(filter(client2.player_id, round12.clone().unwrap(),round22.clone().unwrap(),round32.clone().unwrap(),round42.clone().unwrap()));
-    let round33 = client3.round3(filter(client3.player_id, round12.clone().unwrap(),round22.clone().unwrap(),round32.clone().unwrap(),round42.clone().unwrap()));
-    let round43 = client4.round3(filter(client4.player_id, round12.clone().unwrap(),round22.clone().unwrap(),round32.clone().unwrap(),round42.clone().unwrap()));
+    let round13 = client1.round3(filter(client1.player_id, &vec![round12.clone().unwrap(),round22.clone().unwrap(),round32.clone().unwrap(),round42.clone().unwrap()]));
+    let round23 = client2.round3(filter(client2.player_id, &vec![round12.clone().unwrap(),round22.clone().unwrap(),round32.clone().unwrap(),round42.clone().unwrap()]));
+    let round33 = client3.round3(filter(client3.player_id, &vec![round12.clone().unwrap(),round22.clone().unwrap(),round32.clone().unwrap(),round42.clone().unwrap()]));
+    let round43 = client4.round3(filter(client4.player_id, &vec![round12.clone().unwrap(),round22.clone().unwrap(),round32.clone().unwrap(),round42.clone().unwrap()]));
 
     assert!(round13.is_ok());
     assert!(round23.is_ok());
@@ -78,9 +78,9 @@ fn test_t2_n4_with_new() {
     assert!(signRound22.is_ok());
     assert!(signRound32.is_ok());
 
-    let signRound13 = key1.signRound3(filter2(key1.player_id, signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()));
-    let signRound23 = key2.signRound3(filter2(key2.player_id, signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()));
-    let signRound33 = key3.signRound3(filter2(key3.player_id, signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()));
+    let signRound13 = key1.signRound3(filter(key1.player_id, &vec![signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()]));
+    let signRound23 = key2.signRound3(filter(key2.player_id, &vec![signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()]));
+    let signRound33 = key3.signRound3(filter(key3.player_id, &vec![signRound12.clone().unwrap(),signRound22.clone().unwrap(),signRound32.clone().unwrap()]));
 
 
     assert!(signRound13.is_ok());
@@ -105,38 +105,17 @@ fn test_t2_n4_with_new() {
 
 }
 
-pub fn filter(player_id: usize, c1: Vec<Round2Message>,c2: Vec<Round2Message>,c3: Vec<Round2Message>, c4: Vec<Round2Message>) -> Vec<Round2Message> {
+pub fn filter(player_id: usize, cols: &Vec<Vec<Round2Message>>) -> Vec<Round2Message> {
 
-    let mut result:Vec<Round2Message> = vec![];
-
-    let item = c1.into_iter().find(|x|x.receiver_id == player_id);
-    if item.is_some() {result.push(item.unwrap())};
-
-    let item = c2.into_iter().find(|x|x.receiver_id == player_id);
-    if item.is_some() {result.push(item.unwrap())};
-
-    let item = c3.into_iter().find(|x|x.receiver_id == player_id);
-    if item.is_some() {result.push(item.unwrap())};
-
-    let item = c4.into_iter().find(|x|x.receiver_id == player_id);
-    if item.is_some() {result.push(item.unwrap())};
-
-    result
-
-}
-pub fn filter2(player_id: usize, c1: Vec<Round2Message>,c2: Vec<Round2Message>,c3: Vec<Round2Message>) -> Vec<Round2Message> {
-
-    let mut result:Vec<Round2Message> = vec![];
-
-    let item = c1.into_iter().find(|x|x.receiver_id == player_id);
-    if item.is_some() {result.push(item.unwrap())};
-
-    let item = c2.into_iter().find(|x|x.receiver_id == player_id);
-    if item.is_some() {result.push(item.unwrap())};
-
-    let item = c3.into_iter().find(|x|x.receiver_id == player_id);
-    if item.is_some() {result.push(item.unwrap())};
-
+    let mut result: Vec<Round2Message> = vec![];
+    for i in 0..cols.len().clone() {
+        let c1 = cols[i].clone();
+        let item = c1.into_iter().find(|x|x.receiver_id == player_id);
+        if item.is_some() {
+            let test = item.unwrap();
+            result.push(test);
+        };
+    }
     result
 
 }
