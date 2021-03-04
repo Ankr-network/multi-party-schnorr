@@ -3,11 +3,13 @@
 
 use protocols::thresholdsig::schnorrkel::*;
 use curv::elliptic::curves::traits::{ECPoint};
-
+use schnorrkel::{PublicKey, signing_context};
 
 #[test]
 #[allow(unused_doc_comments)]
 fn test_t2_n4_with_new() {
+
+
     let t = 2;
     let n = 4;
     let mut client1 = NewDrgGen("session 1".into(), 1, t, n);
@@ -50,15 +52,12 @@ fn test_t2_n4_with_new() {
 
     let pubKey = round13.unwrap().public_key;
 
-    println!("Public Key: 0x{}", pubKey.bytes_compressed_to_big_int().to_hex());
-
 
     let mut key1 = client1.get_share();
     let mut key2 = client2.get_share();
     let mut key3 = client3.get_share();
 
     let signParties  = [1,3,5];
-
     let message :[u8;4] = [21,24,25,26];
 
     let signRound11 = key1.signRound1("session 1".to_string(),&message.to_vec(),&signParties);
@@ -94,8 +93,13 @@ fn test_t2_n4_with_new() {
     assert!(signRound24.is_ok());
     assert!(signRound34.is_ok());
 
+    //check with polkadot lib
     let signature =signRound14.unwrap();
-    assert!(signature.verify(&message,&pubKey).is_ok(), "not verified")
+    let publicKey = PublicKey::from_bytes(&pubKey.get_element().as_bytes()[..]).unwrap();
+    let sg = schnorrkel::Signature::from_bytes(&signature.to_bytes()).unwrap();
+    let ctx = signing_context(b"testing testing 1 2 3");
+
+    assert!(publicKey.verify(ctx.bytes(&message),&sg).is_ok(),"not verified by polkadot lib");
 
 
 }

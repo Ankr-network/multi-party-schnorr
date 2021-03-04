@@ -27,6 +27,8 @@ extern crate rand;
 
 extern crate serde_json;
 
+extern crate curve25519_dalek;
+
 pub mod protocols;
 
 #[derive(Copy, PartialEq, Eq, Clone, Debug)]

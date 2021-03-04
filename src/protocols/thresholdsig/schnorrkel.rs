@@ -5,17 +5,19 @@ use std::fmt::Debug;
 
 pub use curv::arithmetic::traits::Converter;
 pub use curv::BigInt;
-use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
-use curv::cryptographic_primitives::hashing::traits::Hash;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSharing;
 pub use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
 use curv::elliptic::curves::traits::*;
+use curve25519_dalek::ristretto::CompressedRistretto;
+use schnorrkel::{PublicKey, SIGNATURE_LENGTH, signing_context};
+use schnorrkel::context::SigningTranscript;
 
 #[allow(unused_doc_comments)]
 use Error::{self, InvalidSig, InvalidSS};
 
 pub(crate) type GE = curv::elliptic::curves::curve_ristretto::GE;
 type FE = curv::elliptic::curves::curve_ristretto::FE;
+
 
 #[derive(Debug, Clone)]
 pub struct DkrGen {
@@ -99,7 +101,6 @@ impl Default for Round3Message {
     }
 }
 
-
 #[derive(Default, Debug, Clone)]
 pub struct Player {
     pub round1: Round1Message,
@@ -137,6 +138,16 @@ pub struct Signature {
     pub R: GE,//rP
 }
 
+impl Signature {
+    pub fn to_bytes(&self) -> [u8; SIGNATURE_LENGTH] {
+        let mut bytes: [u8; SIGNATURE_LENGTH] = [0u8; SIGNATURE_LENGTH];
+        bytes[..32].copy_from_slice(&self.R.get_element().as_bytes()[..]);
+        bytes[32..].copy_from_slice(&self.s.get_element().as_bytes()[..]);
+        bytes[63] |= 128;
+        bytes
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigRound1Message {
     sender_id: usize,
@@ -153,6 +164,25 @@ pub struct SigRound3Message {
     sigma_i: FE,
 }
 
+pub fn get_scalar(message: &[u8], public_key: &GE, R: &GE) -> FE {
+    let mut t = signing_context(b"testing testing 1 2 3").bytes(message);
+
+    t.proto_name(b"Schnorr-sig");
+    let publicKey = PublicKey::from_bytes(&public_key.get_element().as_bytes()[..]).unwrap();
+    t.commit_point(b"sign:pk", publicKey.as_compressed());
+
+    let mut lower: [u8; 32] = [0u8; 32];
+    lower.copy_from_slice(&R.pk_to_key_slice()[..32]);
+    let R2 = CompressedRistretto(lower);
+    t.commit_point(b"sign:R", &R2);
+
+    let k1 = t.challenge_scalar(b"sign:c");
+    let mut k2 = k1.to_bytes();
+    k2.reverse();
+
+    let kx = BigInt::from(&k2[..]);
+    ECScalar::from(&kx)
+}
 
 
 impl SchnorkellKey {
@@ -171,10 +201,8 @@ impl SchnorkellKey {
         let r_i = self.dkr.keyShare;
         self.R = result.unwrap().public_key;
         //modify this for schnorkell
-        let m = HSha256::create_hash_from_slice(
-            &self.message[..],
-        );
-        let k: FE = ECScalar::from(&m);
+
+        let k = get_scalar(&self.message, &self.public_key, &self.R);
         let sigma_i = r_i + k * self.share.clone();
 
         self.sigma_i = sigma_i.clone();
@@ -183,10 +211,10 @@ impl SchnorkellKey {
             R: self.R,
             sigma_i: sigma_i.clone(),
         })
-
     }
-    pub fn signRound4(&mut self, round3s: &Vec<SigRound3Message>) -> Result<Signature, Error> {
 
+
+    pub fn signRound4(&mut self, round3s: &Vec<SigRound3Message>) -> Result<Signature, Error> {
         let mut indices = vec![self.player_id - 1];
         let mut shares = vec![self.sigma_i.clone()];
 
@@ -200,25 +228,19 @@ impl SchnorkellKey {
 
         let sigma = self.poly.reconstruct(&indices.as_slice()[0..reconstruct_limit.clone()], &shares[0..reconstruct_limit.clone()]);
 
-        let signature = Signature{ s: sigma, R: self.R.clone()};
+        let signature = Signature { s: sigma, R: self.R.clone() };
 
-        if signature.verify(&self.message,&self.public_key).is_ok() {
+        if signature.verify(&self.message, &self.public_key).is_ok() {
             Ok(signature)
-        }else {
+        } else {
             Err(InvalidSig)
         }
-
     }
 }
 
 impl Signature {
     pub fn verify(&self, message: &[u8], pubKey: &GE) -> Result<(), Error> {
-        //modify this with scnorrkel constructions
-        let m = HSha256::create_hash_from_slice(
-            &message[..],
-        );
-
-        let kt1: FE = ECScalar::from(&m);
+        let kt1: FE = get_scalar(message, pubKey, &self.R);
         let kt2 = FE::q() - kt1.to_big_int();
         let k = ECScalar::from(&kt2);
 
@@ -363,10 +385,10 @@ impl DkrGen {
             public_key: self.publicKey.clone(),
         })
     }
+}
 
-    pub fn recover(&self, indices: &[usize], shares: &Vec<FE>) -> FE {
-        self.poly.reconstruct(indices, shares)
-    }
+pub fn recover(poly: &VerifiableSS<GE>, indices: &[usize], shares: &Vec<FE>) -> FE {
+    poly.reconstruct(indices, shares)
 }
 
 
