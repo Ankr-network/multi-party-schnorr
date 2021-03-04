@@ -9,8 +9,8 @@ use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSha
 pub use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
 use curv::elliptic::curves::traits::*;
 use curve25519_dalek::ristretto::CompressedRistretto;
-use schnorrkel::{PublicKey, SIGNATURE_LENGTH, signing_context};
-use schnorrkel::context::SigningTranscript;
+use schnorrkel::{PublicKey, SIGNATURE_LENGTH};
+use schnorrkel::context::{SigningTranscript, SigningContext};
 
 #[allow(unused_doc_comments)]
 use Error::{self, InvalidSig, InvalidSS};
@@ -109,7 +109,7 @@ pub struct Player {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SchnorkellKey {
     pub share: FE,
     pub public_key: GE,
@@ -121,6 +121,7 @@ pub struct SchnorkellKey {
     pub sigma_i: FE,
     message: Vec<u8>,
     pub dkr: DkrGen,
+    pub ctx: SigningContext,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -164,8 +165,8 @@ pub struct SigRound3Message {
     sigma_i: FE,
 }
 
-pub fn get_scalar(message: &[u8], public_key: &GE, R: &GE) -> FE {
-    let mut t = signing_context(b"testing testing 1 2 3").bytes(message);
+pub fn get_scalar(ctx: &SigningContext, message: &[u8], public_key: &GE, R: &GE) -> FE {
+    let mut t = ctx.bytes(message);
 
     t.proto_name(b"Schnorr-sig");
     let publicKey = PublicKey::from_bytes(&public_key.get_element().as_bytes()[..]).unwrap();
@@ -186,9 +187,10 @@ pub fn get_scalar(message: &[u8], public_key: &GE, R: &GE) -> FE {
 
 
 impl SchnorkellKey {
-    pub fn signRound1(&mut self, session_id: String, message: &Vec<u8>, parties: &[usize]) -> Result<Round1Message, Error> {
+    pub fn signRound1(&mut self, session_id: String, ctx: SigningContext, message: &Vec<u8>, parties: &[usize]) -> Result<Round1Message, Error> {
         self.message = message.clone();
         self.dkr = NewDrgGen(session_id, self.player_id, self.poly.parameters.threshold, parties.len());
+        self.ctx = ctx;
         self.dkr.round1(parties)
     }
     pub fn signRound2(&mut self, round1s: &[Round1Message]) -> Result<Vec<Round2Message>, Error> {
@@ -202,7 +204,7 @@ impl SchnorkellKey {
         self.R = result.unwrap().public_key;
         //modify this for schnorkell
 
-        let k = get_scalar(&self.message, &self.public_key, &self.R);
+        let k = get_scalar(&self.ctx, &self.message, &self.public_key, &self.R);
         let sigma_i = r_i + k * self.share.clone();
 
         self.sigma_i = sigma_i.clone();
@@ -230,7 +232,7 @@ impl SchnorkellKey {
 
         let signature = Signature { s: sigma, R: self.R.clone() };
 
-        if signature.verify(&self.message, &self.public_key).is_ok() {
+        if signature.verify(&self.ctx, &self.message, &self.public_key).is_ok() {
             Ok(signature)
         } else {
             Err(InvalidSig)
@@ -239,8 +241,8 @@ impl SchnorkellKey {
 }
 
 impl Signature {
-    pub fn verify(&self, message: &[u8], pubKey: &GE) -> Result<(), Error> {
-        let kt1: FE = get_scalar(message, pubKey, &self.R);
+    pub fn verify(&self, ctx: &SigningContext, message: &[u8], pubKey: &GE) -> Result<(), Error> {
+        let kt1: FE = get_scalar(ctx,message, pubKey, &self.R);
         let kt2 = FE::q() - kt1.to_big_int();
         let k = ECScalar::from(&kt2);
 
@@ -279,6 +281,7 @@ impl DkrGen {
             sigma_i: FE::zero(),
             message: vec![],
             dkr: Default::default(),
+            ctx: SigningContext::new(&[0]),
         }
     }
     pub fn round1(&mut self, parties: &[usize]) -> Result<Round1Message, Error> {

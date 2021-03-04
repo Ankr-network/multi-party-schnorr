@@ -59,10 +59,12 @@ fn test_t2_n4_with_new() {
 
     let signParties  = [1,3,5];
     let message :[u8;4] = [21,24,25,26];
+    let ctx = signing_context(b"threshold schnorkell signing test");
 
-    let signRound11 = key1.signRound1("session 1".to_string(),&message.to_vec(),&signParties);
-    let signRound21 = key2.signRound1("session 1".to_string(),&message.to_vec(),&signParties);
-    let signRound31 = key3.signRound1("session 1".to_string(),&message.to_vec(),&signParties);
+
+    let signRound11 = key1.signRound1("session 1".to_string(),ctx.clone(),&message.to_vec(),&signParties);
+    let signRound21 = key2.signRound1("session 1".to_string(),ctx.clone(),&message.to_vec(),&signParties);
+    let signRound31 = key3.signRound1("session 1".to_string(),ctx.clone(),&message.to_vec(),&signParties);
 
     assert!(signRound11.is_ok());
     assert!(signRound21.is_ok());
@@ -97,7 +99,6 @@ fn test_t2_n4_with_new() {
     let signature =signRound14.unwrap();
     let publicKey = PublicKey::from_bytes(&pubKey.get_element().as_bytes()[..]).unwrap();
     let sg = schnorrkel::Signature::from_bytes(&signature.to_bytes()).unwrap();
-    let ctx = signing_context(b"testing testing 1 2 3");
 
     assert!(publicKey.verify(ctx.bytes(&message),&sg).is_ok(),"not verified by polkadot lib");
 
