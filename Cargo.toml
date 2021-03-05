@@ -17,6 +17,10 @@ curv = { git = "https://github.com/KZen-networks/curv" , tag = "v0.5.9"}
 schnorrkel = "0.9.1"
 serde_json = "1.0"
 curve25519-dalek = "2.0.0"
+ecies-ed25519 = "0.5.0"
+openssl = { version = "0.10", features = ["vendored"] }
+openssl-sys = "0.9.60"
+
 [dependencies.centipede]
 git = "https://github.com/KZen-networks/centipede"
 tag = "v0.2.9"

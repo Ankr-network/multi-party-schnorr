@@ -29,6 +29,12 @@ extern crate serde_json;
 
 extern crate curve25519_dalek;
 
+extern crate ecies_ed25519;
+
+extern crate openssl;
+
+extern crate openssl_sys;
+
 pub mod protocols;
 
 #[derive(Copy, PartialEq, Eq, Clone, Debug)]

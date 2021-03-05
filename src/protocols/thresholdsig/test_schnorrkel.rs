@@ -5,11 +5,19 @@ use protocols::thresholdsig::schnorrkel::*;
 use curv::elliptic::curves::traits::{ECPoint};
 use schnorrkel::{PublicKey, signing_context};
 
+
+
 #[test]
 #[allow(unused_doc_comments)]
+fn test_cert_tls() {
+    let ca = include_bytes!("../../../agents/ca.cert");
+
+    let agent1 = include_bytes!("../../../agents/agent1.crt");
+    assert!(verify_cert(agent1,ca, b"agent=1").is_ok(),"not verified");
+}
+
+#[test]
 fn test_t2_n4_with_new() {
-
-
     let t = 2;
     let n = 4;
     let mut client1 = NewDrgGen("session 1".into(), 1, t, n);
@@ -51,7 +59,6 @@ fn test_t2_n4_with_new() {
 
 
     let pubKey = round13.unwrap().public_key;
-
 
     let mut key1 = client1.get_share();
     let mut key2 = client2.get_share();
@@ -106,7 +113,6 @@ fn test_t2_n4_with_new() {
 }
 
 pub fn filter(player_id: usize, cols: &Vec<Vec<Round2Message>>) -> Vec<Round2Message> {
-
     let mut result: Vec<Round2Message> = vec![];
     for i in 0..cols.len().clone() {
         let c1 = cols[i].clone();
@@ -117,5 +123,4 @@ pub fn filter(player_id: usize, cols: &Vec<Vec<Round2Message>>) -> Vec<Round2Mes
         };
     }
     result
-
 }
