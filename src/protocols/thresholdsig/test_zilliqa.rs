@@ -15,10 +15,10 @@
     @license GPL-3.0+ <https://github.com/KZen-networks/multisig-schnorr/blob/master/LICENSE>
 */
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use protocols::thresholdsig::zilliqa_schnorr::*;
-
 use curv::elliptic::curves::secp256_k1::FE;
 use curv::elliptic::curves::secp256_k1::GE;
+
+use protocols::thresholdsig::zilliqa_schnorr::*;
 
 #[test]
 #[allow(unused_doc_comments)]

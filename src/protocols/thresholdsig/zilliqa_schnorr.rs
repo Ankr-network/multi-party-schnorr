@@ -1,4 +1,15 @@
 #![allow(non_snake_case)]
+
+use curv::arithmetic::traits::*;
+pub use curv::arithmetic::traits::Converter;
+pub use curv::BigInt;
+use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
+use curv::cryptographic_primitives::commitments::traits::Commitment;
+use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
+use curv::cryptographic_primitives::hashing::traits::Hash;
+pub use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
+use curv::elliptic::curves::traits::*;
+
 #[allow(unused_doc_comments)]
 /*
     Multisig Schnorr
@@ -15,22 +26,9 @@
 
     @license GPL-3.0+ <https://github.com/KZen-networks/multisig-schnorr/blob/master/LICENSE>
 */
-
 /// following the signing & verify variant from https://en.wikipedia.org/wiki/Schnorr_signature (classical variant)
 /// also can be found in zilliqa  white paper: https://docs.zilliqa.com/whitepaper.pdf
-use Error::{self, InvalidKey, InvalidSS, InvalidSig};
-
-use curv::arithmetic::traits::*;
-
-use curv::elliptic::curves::traits::*;
-
-pub use curv::arithmetic::traits::Converter;
-use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
-use curv::cryptographic_primitives::commitments::traits::Commitment;
-use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
-use curv::cryptographic_primitives::hashing::traits::Hash;
-pub use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-pub use curv::BigInt;
+use Error::{self, InvalidKey, InvalidSig, InvalidSS};
 
 type GE = curv::elliptic::curves::secp256_k1::GE;
 type FE = curv::elliptic::curves::secp256_k1::FE;
@@ -69,7 +67,8 @@ pub struct SignMessage1 {
 
 #[derive(Debug)]
 pub struct Parameters {
-    pub threshold: usize,   //t
+    pub threshold: usize,
+    //t
     pub share_count: usize, //n
 }
 

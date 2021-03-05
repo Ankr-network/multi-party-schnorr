@@ -21,7 +21,7 @@ mod tests {
     use curv::elliptic::curves::secp256_k1::GE;
     use curv::elliptic::curves::traits::ECScalar;
 
-    use protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
+    use protocols::multisig::{EphKey, Keys, partial_sign, Signature, verify};
 
     #[test]
     fn two_party_key_gen() {

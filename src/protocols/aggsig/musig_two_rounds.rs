@@ -19,13 +19,13 @@
 #![allow(non_snake_case)]
 
 use curv::arithmetic::traits::Converter;
+use curv::BigInt;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::commitments::traits::*;
 use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
 use curv::cryptographic_primitives::hashing::traits::*;
 use curv::cryptographic_primitives::proofs::*;
 use curv::elliptic::curves::traits::*;
-use curv::BigInt;
 
 type GE = curv::elliptic::curves::secp256_k1::GE;
 type FE = curv::elliptic::curves::secp256_k1::FE;
@@ -73,7 +73,7 @@ impl KeyAgg {
             panic!("The is no party with index {}", party_index);
         }
         if pks.len() == 0 {
-            panic!("Not enough participant for multi-signature",);
+            panic!("Not enough participant for multi-signature", );
         }
         let bn_1 = BigInt::from(1);
         let x_coor_vec: Vec<BigInt> = pks
@@ -304,6 +304,7 @@ pub fn verify(
 #[cfg(test)]
 mod tests {
     use curv::elliptic::curves::secp256_k1::GE;
+
     use protocols::aggsig::musig_two_rounds::*;
 
     extern crate hex;

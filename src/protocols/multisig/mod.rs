@@ -17,14 +17,14 @@
 
 //! Schnorr {n,n}-Signatures based on Accountable-Subgroup Multisignatures
 //!
-//See (https://pdfs.semanticscholar.org/6bf4/f9450e7a8e31c106a8670b961de4735589cf.pdf)
-use curv::elliptic::curves::traits::*;
-use curv::BigInt;
-
 use centipede::juggling::proof_system::{Helgamalsegmented, Witness};
 use centipede::juggling::segmentation::Msegmentation;
+use curv::BigInt;
 use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
 use curv::cryptographic_primitives::hashing::traits::*;
+//See (https://pdfs.semanticscholar.org/6bf4/f9450e7a8e31c106a8670b961de4735589cf.pdf)
+use curv::elliptic::curves::traits::*;
+
 use protocols::multisig;
 
 type GE = curv::elliptic::curves::secp256_k1::GE;

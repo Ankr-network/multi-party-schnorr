@@ -14,17 +14,14 @@
 //! aggregated Schnorr {n,n}-Signatures
 //!
 //! See https://eprint.iacr.org/2018/068.pdf, https://eprint.iacr.org/2018/483.pdf subsection 5.1
-use curv::BigInt;
-
-use curv::cryptographic_primitives::proofs::*;
-use curv::elliptic::curves::traits::*;
-
-use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
-use curv::cryptographic_primitives::hashing::traits::*;
-
 use curv::arithmetic::traits::Converter;
+use curv::BigInt;
 use curv::cryptographic_primitives::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives::commitments::traits::*;
+use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
+use curv::cryptographic_primitives::hashing::traits::*;
+use curv::cryptographic_primitives::proofs::*;
+use curv::elliptic::curves::traits::*;
 
 type GE = curv::elliptic::curves::secp256_k1::GE;
 type FE = curv::elliptic::curves::secp256_k1::FE;
@@ -266,10 +263,13 @@ pub fn verify_partial(
         Err(ProofError)
     }
 }
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use curv::BigInt;
+
+    use super::*;
+
     extern crate hex;
 
     #[test]
@@ -292,13 +292,13 @@ mod tests {
         assert!(EphemeralKey::test_com(
             &party2_ephemeral_key.keypair.public_key,
             &party2_ephemeral_key.blind_factor,
-            party2_commitment
+            party2_commitment,
         ));
         // p2 release R2' and p1 test com(R2') = com(R2):
         assert!(EphemeralKey::test_com(
             &party1_ephemeral_key.keypair.public_key,
             &party1_ephemeral_key.blind_factor,
-            party1_commitment
+            party1_commitment,
         ));
 
         // compute apk:
@@ -350,15 +350,15 @@ mod tests {
             &r,
             &ECScalar::from(&party1_h_0),
             &ECScalar::from(&party1_key_agg.hash),
-            &party1_key.public_key
+            &party1_key.public_key,
         )
-        .is_ok());
+            .is_ok());
 
         // signature s:
         let (r, s) = EphemeralKey::add_signature_parts(s1, &s2, &party1_r_tag);
 
         // verify:
-        assert!(verify(&s, &r, &party1_key_agg.apk, &message, is_musig,).is_ok())
+        assert!(verify(&s, &r, &party1_key_agg.apk, &message, is_musig).is_ok())
     }
 
     #[test]

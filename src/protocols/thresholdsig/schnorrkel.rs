@@ -9,10 +9,7 @@ use curv::cryptographic_primitives::secret_sharing::feldman_vss::ShamirSecretSha
 pub use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
 use curv::elliptic::curves::traits::*;
 use curve25519_dalek::ristretto::CompressedRistretto;
-use openssl::nid::Nid;
-use openssl::stack::Stack;
-use openssl::x509::*;
-use openssl::x509::store::X509StoreBuilder;
+
 use schnorrkel::{PublicKey, SIGNATURE_LENGTH};
 use schnorrkel::context::{SigningContext, SigningTranscript};
 
@@ -22,39 +19,6 @@ use Error::{self, InvalidSig, InvalidSS};
 pub(crate) type GE = curv::elliptic::curves::curve_ristretto::GE;
 type FE = curv::elliptic::curves::curve_ristretto::FE;
 
-
-pub fn verify_cert(cert: &[u8], ca: &[u8], commonName: &[u8]) -> Result<bool, String> {
-    let cert = X509::from_pem(cert).unwrap();
-
-    let key = cert.public_key();
-
-    if key.is_err() {
-        return Err("has no valid ec key".parse().unwrap());
-    }
-
-    let subject = cert.subject_name();
-    let cn = subject.entries_by_nid(Nid::COMMONNAME).next().unwrap();
-
-    if commonName.ne(cn.data().as_slice()) {
-        return Err("common name is not verified".parse().unwrap());
-    }
-    let ca = X509::from_pem(ca).unwrap();
-
-    let chain = Stack::new().unwrap();
-    let mut store_bldr = X509StoreBuilder::new().unwrap();
-    store_bldr.add_cert(ca).unwrap();
-    let store = store_bldr.build();
-
-    let mut context = X509StoreContext::new().unwrap();
-
-    let is_ok = context
-        .init(&store, &cert, &chain, |c| c.verify_cert()).is_ok();
-    if is_ok {
-        return Ok(true);
-    }else {
-        return Err("ca does not issue this cert".parse().unwrap());
-    }
-}
 
 
 #[derive(Debug, Clone)]

@@ -20,3 +20,5 @@ pub mod multisig;
 // {t,n}- Signatures based on Provable Secure Distributed Schnorr Signatures
 // ( https://github.com/KZen-networks/multi-party-schnorr/blob/master/papers/provably_secure_distributed_schnorr_signatures_and_a_threshold_scheme.pdf)
 pub mod thresholdsig;
+
+pub mod encryption;
