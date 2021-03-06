@@ -20,6 +20,9 @@ curve25519-dalek = "2.0.0"
 ecies-ed25519 = "0.5.0"
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = "0.9.60"
+aes-gcm = "0.8.0"
+typenum = "1.12.0"
+
 
 [dependencies.centipede]
 git = "https://github.com/KZen-networks/centipede"

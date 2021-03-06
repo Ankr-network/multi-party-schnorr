@@ -35,6 +35,10 @@ extern crate openssl;
 
 extern crate openssl_sys;
 
+extern crate typenum;
+
+extern  crate aes_gcm;
+
 pub mod protocols;
 
 #[derive(Copy, PartialEq, Eq, Clone, Debug)]
