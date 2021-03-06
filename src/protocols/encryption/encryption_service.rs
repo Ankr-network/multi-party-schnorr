@@ -104,67 +104,53 @@ pub fn decrypt(priv_b: &EcKey<Private>, sender_a: &X509, cipher: &EncryptedMessa
 
     let A = sender_a.public_key().unwrap();
     let A = A.ec_key().unwrap();
-    let A = A.public_key();
-
-    let R = cipher.getR(&group);
-    let R = R.as_ref();
-    let Z = cipher.getZ();
-    let E= cipher.getE();
 
     // check first e == H(zG − eA, A, C)
     let mut S = EcPoint::new(&group).unwrap();
-    if S.mul_generator(&group,Z.as_ref(),&mut ctx).is_err() {
+    if S.mul_generator(&group,cipher.getZ().as_ref(),&mut ctx).is_err() {
         return None;
     }
 
     let mut eA = EcPoint::new(&group).unwrap();
-    if eA.mul(&group, A, E.as_ref(), &mut ctx).is_err() {
+    if eA.mul(&group, A.public_key(), cipher.getE().as_ref(), &mut ctx).is_err() {
         return None;
     }
     if eA.invert(&group,&mut ctx).is_err() {
         return None;
     }
 
-    let eA = eA.as_ref();
     let mut S2 = EcPoint::new(&group).unwrap();
-    if S2.add(&group,&S,eA, &mut ctx).is_err() {
+    if S2.add(&group,&S, eA.as_ref(), &mut ctx).is_err() {
         return None;
     }
 
     let str = S2.to_bytes(&group,PointConversionForm::COMPRESSED, &mut ctx).unwrap();
-
     let mut temp :Vec<u8> = vec![];
     temp.extend(&str);
-
 
     let cn = sender_a.subject_name().entries_by_nid(Nid::COMMONNAME).next().unwrap();
     temp.extend_from_slice(cn.data().as_slice());
     temp.extend(&cipher.C);
-    let e = sha256(temp.as_slice());
-    let e = e.to_vec();
-    if e != cipher.E {
+    if sha256(temp.as_slice()).to_vec() != cipher.E {
         return None;
     }
     //now decrypt the message
-
     let mut Rprime = EcPoint::new(&group).unwrap();
-    if Rprime.mul(&group,R, priv_b.private_key(),&mut ctx) .is_err() {
+    if Rprime.mul(&group,cipher.getR(&group).as_ref(), priv_b.private_key(),&mut ctx) .is_err() {
         return None;
     }
-    let key = Rprime.as_ref().to_bytes(&group,PointConversionForm::COMPRESSED, &mut ctx).unwrap();
-    let key = sha256(key.as_slice());
+    let rawKey = Rprime.as_ref().to_bytes(&group,PointConversionForm::COMPRESSED, &mut ctx).unwrap();
+    let key = sha256(rawKey.as_slice());
     aes_decrypt(&key,&cipher.C)
 }
 
 pub fn verify_cert(cert: &[u8], ca: &[u8], common_name: &[u8]) -> Result<bool, String> {
     let cert = X509::from_pem(cert).unwrap();
-
     let key = cert.public_key();
 
     if key.is_err() {
         return Err("has no valid ec key".parse().unwrap());
     }
-
     let subject = cert.subject_name();
     let cn = subject.entries_by_nid(Nid::COMMONNAME).next().unwrap();
 
@@ -180,9 +166,8 @@ pub fn verify_cert(cert: &[u8], ca: &[u8], common_name: &[u8]) -> Result<bool, S
 
     let mut context = X509StoreContext::new().unwrap();
 
-    let is_ok = context
-        .init(&store, &cert, &chain, |c| c.verify_cert()).is_ok();
-    if is_ok {
+    if context
+        .init(&store, &cert, &chain, |c| c.verify_cert()).is_ok() {
         return Ok(true);
     } else {
         return Err("ca does not issue this cert".parse().unwrap());
