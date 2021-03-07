@@ -152,36 +152,6 @@ pub fn decrypt(priv_b: &EcKey<Private>, sender_a: &X509, cipher: &EncryptedMessa
     aes_decrypt(&key, &cipher.C)
 }
 
-pub fn verify_cert(cert: &[u8], ca: &[u8], common_name: &[u8]) -> Result<bool, String> {
-    let cert = X509::from_pem(cert).unwrap();
-    let key = cert.public_key();
-
-    if key.is_err() {
-        return Err("has no valid ec key".parse().unwrap());
-    }
-    let subject = cert.subject_name();
-    let cn = subject.entries_by_nid(Nid::COMMONNAME).next().unwrap();
-
-    if common_name.ne(cn.data().as_slice()) {
-        return Err("common name is not verified".parse().unwrap());
-    }
-    let ca = X509::from_pem(ca).unwrap();
-
-    let chain = Stack::new().unwrap();
-    let mut store_bldr = X509StoreBuilder::new().unwrap();
-    store_bldr.add_cert(ca).unwrap();
-    let store = store_bldr.build();
-
-    let mut context = X509StoreContext::new().unwrap();
-
-    if context
-        .init(&store, &cert, &chain, |c| c.verify_cert()).is_ok() {
-        return Ok(true);
-    } else {
-        return Err("ca does not issue this cert".parse().unwrap());
-    }
-}
-
 /// AES-256-GCM encryption wrapper
 pub fn aes_encrypt(key: &[u8], msg: &[u8]) -> Option<Vec<u8>> {
     let cipher = Cipher::aes_256_gcm();

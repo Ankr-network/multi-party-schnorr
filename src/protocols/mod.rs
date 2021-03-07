@@ -22,3 +22,5 @@ pub mod multisig;
 pub mod thresholdsig;
 
 pub mod encryption;
+
+pub mod utils;

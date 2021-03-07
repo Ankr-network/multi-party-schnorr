@@ -1,15 +1,16 @@
 #![allow(non_snake_case)]
 
-use protocols::encryption::encryption_service::{verify_cert, encrypt, decrypt};
+use protocols::encryption::encryption_service::{encrypt, decrypt};
 use openssl::x509::X509;
 use openssl::pkey::PKey;
+use protocols::utils::utils::{load_cert, verify_cert_with_commonname};
 
 #[test]
 #[allow(unused_doc_comments)]
 fn test_check_cert_tls() {
-    let ca = include_bytes!("../../../agents/ca.cert");
-    let agent1 = include_bytes!("../../../agents/agent1.crt");
-    assert!(verify_cert(agent1, ca, b"agent=1").is_ok(), "not verified");
+    let ca = load_cert(include_bytes!("../../../agents/ca.cert")).unwrap();
+    let agent1_cert = load_cert(include_bytes!("../../../agents/agent1.crt")).unwrap();
+    assert!(verify_cert_with_commonname(&agent1_cert, &ca, b"agent=1").is_ok(), "not verified");
 }
 
 #[test]
@@ -38,9 +39,4 @@ fn test_encrypt_decrypt() {
     assert!(plain.is_some(),"cipher is not decrypted");
 
     assert_eq!(*message, plain.unwrap());
-
-
-
-
-
 }
