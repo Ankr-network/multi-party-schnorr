@@ -29,7 +29,7 @@ fn test_t2_n4_with_keygen() {
 
     let (ca, agents, keys) = load_certs_from_file();
 
-    let t = 3;
+    let t = 2;
     let n = 4;
     let mut client1 = NewDrgGen("session 1".into(), ca.clone(),&keys[0], &agents[0], &agents[0..4], t, n);
     let mut client2 = NewDrgGen("session 1".into(), ca.clone(),&keys[1], &agents[1], &agents[0..4], t, n);
@@ -79,60 +79,60 @@ fn test_t2_n4_with_keygen() {
 #[test]
 fn test_t2_n4_with_signing_ceremony() {
 
+    let (ca, agents, keys) = load_certs_from_file();
+    let ctx = signing_context(b"threshold schnorkell signing test");
 
-    /*
-        let (ca, agents, keys) = load_certs_from_file();
-
-        let t = 3;
-        let n = 4;
-        let pubKey = round13.unwrap().public_key;
-
-        let mut key1 = get_share(&client1);
-        let mut key2   = get_share(&client2);
-        let mut key3 =  get_share(&client3);
-
-        let signParties = [1, 3, 5];
-        let message: [u8; 4] = [21, 24, 25, 26];
-        let ctx = signing_context(b"threshold schnorkell signing test");
+    let ks1=ShareKey::from(&include_bytes!("../../../agents/agent1_share.json").to_vec());
+    let ks2=ShareKey::from(&include_bytes!("../../../agents/agent2_share.json").to_vec());
+    let ks3=ShareKey::from(&include_bytes!("../../../agents/agent3_share.json").to_vec());
 
 
-        let signRound11 = key1.signRound1("session 1".to_string(), ctx.clone(), &message.to_vec(), &signParties);
-        let signRound21 = key2.signRound1("session 1".to_string(), ctx.clone(), &message.to_vec(), &signParties);
-        let signRound31 = key3.signRound1("session 1".to_string(), ctx.clone(), &message.to_vec(), &signParties);
+    let mut key1 = NewSigningCeremony("session 1".into(), ks1,ctx.clone(),ca.clone(),&keys[0], &agents[0], &agents[0..3]);
+    let mut key2 = NewSigningCeremony("session 1".into(), ks2,ctx.clone(),ca.clone(),&keys[1], &agents[1], &agents[0..3]);
+    let mut key3 = NewSigningCeremony("session 1".into(), ks3,ctx.clone(),ca.clone(),&keys[2], &agents[2], &agents[0..3]);
 
-        assert!(signRound11.is_ok());
-        assert!(signRound21.is_ok());
-        assert!(signRound31.is_ok());
+    let message: [u8; 4] = [21, 24, 25, 26];
+    let signRound11 = key1.signRound1(&message.to_vec());
+    let signRound21 = key2.signRound1(&message.to_vec());
+    let signRound31 = key3.signRound1(&message.to_vec());
 
-        let signRound12 = key1.signRound2(&[signRound21.clone().unwrap(), signRound31.clone().unwrap()]);
-        let signRound22 = key2.signRound2(&[signRound11.clone().unwrap(), signRound31.clone().unwrap()]);
-        let signRound32 = key3.signRound2(&[signRound11.clone().unwrap(), signRound21.clone().unwrap()]);
+    assert!(signRound11.is_ok());
+    assert!(signRound21.is_ok());
+    assert!(signRound31.is_ok());
 
-        assert!(signRound12.is_ok());
-        assert!(signRound22.is_ok());
-        assert!(signRound32.is_ok());
+    let signRound12 = key1.signRound2(&[signRound21.clone().unwrap(), signRound31.clone().unwrap()]);
+    let signRound22 = key2.signRound2(&[signRound11.clone().unwrap(), signRound31.clone().unwrap()]);
+    let signRound32 = key3.signRound2(&[signRound11.clone().unwrap(), signRound21.clone().unwrap()]);
 
-        let signRound13 = key1.signRound3(filter(key1.player_id, &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
-        let signRound23 = key2.signRound3(filter(key2.player_id, &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
-        let signRound33 = key3.signRound3(filter(key3.player_id, &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
+    assert!(signRound12.is_ok());
+    assert!(signRound22.is_ok());
+    assert!(signRound32.is_ok());
+
+    let signRound13 = key1.signRound3(filter(key1.dkr.get_player_id(), &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
+    let signRound23 = key2.signRound3(filter(key2.dkr.get_player_id(), &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
+    let signRound33 = key3.signRound3(filter(key3.dkr.get_player_id(), &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
 
 
-        assert!(signRound13.is_ok());
-        assert!(signRound23.is_ok());
-        assert!(signRound33.is_ok());
+    assert!(signRound13.is_ok());
+    assert!(signRound23.is_ok());
+    assert!(signRound33.is_ok());
 
-        let signRound14 = key1.signRound4(&vec![signRound23.clone().unwrap(), signRound33.clone().unwrap()]);
-        let signRound24 = key2.signRound4(&vec![signRound13.clone().unwrap(), signRound33.clone().unwrap()]);
-        let signRound34 = key3.signRound4(&vec![signRound13.clone().unwrap(), signRound23.clone().unwrap()]);
+    let signRound14 = key1.signRound4(&vec![signRound23.clone().unwrap(), signRound33.clone().unwrap()]);
+    let signRound24 = key2.signRound4(&vec![signRound13.clone().unwrap(), signRound33.clone().unwrap()]);
+    let signRound34 = key3.signRound4(&vec![signRound13.clone().unwrap(), signRound23.clone().unwrap()]);
 
-        assert!(signRound14.is_ok());
-        assert!(signRound24.is_ok());
-        assert!(signRound34.is_ok());
+    assert!(signRound14.is_ok());
+    assert!(signRound24.is_ok());
+    assert!(signRound34.is_ok());
 
-        //check with polkadot lib
-        let signature = signRound14.unwrap();
-        let publicKey = PublicKey::from_bytes(&pubKey.get_element().as_bytes()[..]).unwrap();
-        let sg = schnorrkel::Signature::from_bytes(&signature.to_bytes()).unwrap();
+    let pubKey = key1.share_key.public_key;
 
-        assert!(publicKey.verify(ctx.bytes(&message), &sg).is_ok(), "not verified by polkadot lib");*/
+    //check with polkadot lib
+    let signature = signRound14.unwrap();
+    let publicKey = PublicKey::from_bytes(&pubKey.get_element().as_bytes()[..]).unwrap();
+    let sg = schnorrkel::Signature::from_bytes(&signature.to_bytes()).unwrap();
+
+    assert!(publicKey.verify(ctx.bytes(&message), &sg).is_ok(), "not verified by polkadot lib");
+
+
 }

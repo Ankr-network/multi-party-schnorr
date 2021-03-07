@@ -38,6 +38,7 @@ extern crate openssl_sys;
 extern crate typenum;
 
 extern  crate aes_gcm;
+extern crate proc_macro;
 
 pub mod protocols;
 

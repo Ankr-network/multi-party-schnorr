@@ -18,9 +18,6 @@ use Error::{self, InvalidSig, InvalidSS};
 use openssl::ec::EcKey;
 use openssl::pkey::Private;
 use openssl::x509::X509;
-use rand::seq::index::IndexVec::USize;
-use std::convert::TryInto;
-use openssl::nid::Nid;
 use protocols::utils::utils::{get_player_id, verify_cert};
 use protocols::encryption::encryption_service::{encrypt, EncryptedMessage, decrypt};
 use std::path::Path;
@@ -143,6 +140,12 @@ pub struct ShareKey {
     pub poly: VerifiableSS<GE>,
 }
 
+impl From<&Vec<u8>> for ShareKey {
+    fn from( a : &Vec<u8>) -> Self {
+        serde_json::from_slice(a).unwrap()
+    }
+}
+
 #[derive(Clone)]
 pub struct SigningCeremony {
     pub share_key : ShareKey,
@@ -153,13 +156,15 @@ pub struct SigningCeremony {
     pub dkr: DkrGen,
     pub ctx: SigningContext,
 }
+pub fn NewSigningCeremony(session_id: String, ks : ShareKey, ctx : SigningContext, ca : X509, key :&EcKey<Private>, cert : &X509, agents : &[X509]) -> SigningCeremony {
+    let drg = NewDrgGen(session_id,ca,key,cert,agents,ks.poly.parameters.threshold, agents.len());
+    SigningCeremony{ share_key: ks, message: vec![], r_i: FE::zero(), R: GE::generator(), sigma_i: FE::zero(), dkr: drg, ctx: ctx, }
+}
 
-/*
+
 impl SigningCeremony {
-    pub fn signRound1(&mut self, session_id: String, ctx: SigningContext, message: &Vec<u8>, parties: &[usize]) -> Result<Round1Message, Error> {
+    pub fn signRound1(&mut self, message: &Vec<u8>) -> Result<Round1Message, Error> {
         self.message = message.clone();
-        self.dkr = NewDrgGen(session_id, self.player_id, self.poly.parameters.threshold, parties.len());
-        self.ctx = ctx;
         self.dkr.round1()
     }
     pub fn signRound2(&mut self, round1s: &[Round1Message]) -> Result<Vec<Round2Message>, Error> {
@@ -173,12 +178,12 @@ impl SigningCeremony {
         self.R = result.unwrap().public_key;
         //modify this for schnorkell
 
-        let k = get_scalar(&self.ctx, &self.message, &self.public_key, &self.R);
-        let sigma_i = r_i + k * self.share.clone();
+        let k = get_schnorkell_scalar(&self.ctx, &self.message, &self.share_key.public_key, &self.R);
+        let sigma_i = r_i + k * self.share_key.secret.clone();
 
         self.sigma_i = sigma_i.clone();
         Ok(SigRound3Message {
-            sender_id: self.player_id.clone(),
+            sender_id: self.dkr.get_player_id(),
             R: self.R,
             sigma_i: sigma_i.clone(),
         })
@@ -186,7 +191,7 @@ impl SigningCeremony {
 
 
     pub fn signRound4(&mut self, round3s: &Vec<SigRound3Message>) -> Result<Signature, Error> {
-        let mut indices = vec![self.player_id - 1];
+        let mut indices = vec![self.dkr.get_player_id() - 1];
         let mut shares = vec![self.sigma_i.clone()];
 
         round3s.iter().map(|next| {
@@ -195,20 +200,22 @@ impl SigningCeremony {
             true
         }).all(|x| x == true);
 
-        let reconstruct_limit = self.poly.parameters.threshold + 1;
+        let poly = &self.dkr.poly;
 
-        let sigma = self.poly.reconstruct(&indices.as_slice()[0..reconstruct_limit.clone()], &shares[0..reconstruct_limit.clone()]);
+        let reconstruct_limit = poly.parameters.threshold + 1;
+
+        let sigma = poly.reconstruct(&indices.as_slice()[0..reconstruct_limit.clone()], &shares[0..reconstruct_limit.clone()]);
 
         let signature = Signature { s: sigma, R: self.R.clone() };
 
-        if signature.verify(&self.ctx, &self.message, &self.public_key).is_ok() {
+        if signature.verify(&self.ctx, &self.message, &self.share_key.public_key).is_ok() {
             Ok(signature)
         } else {
             Err(InvalidSig)
         }
     }
 }
-*/
+
 
 pub fn NewDrgGen(session_id: String, ca : X509, key :&EcKey<Private>, cert : &X509, agents : &[X509], t: usize, n: usize) -> DkrGen {
     let mut dk = DkrGen {

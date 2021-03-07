@@ -7,10 +7,8 @@ use openssl::ec::{EcGroup, EcKey, EcPoint, PointConversionForm};
 use openssl::nid::Nid;
 use openssl::pkey::Private;
 use openssl::sha::sha256;
-use openssl::stack::Stack;
 use openssl::symm::{Cipher, decrypt_aead, encrypt_aead};
 use openssl::x509::*;
-use openssl::x509::store::X509StoreBuilder;
 use rand::{Rng, thread_rng};
 
 /// AES IV/nonce length

@@ -3,7 +3,6 @@ use openssl::error::ErrorStack;
 use openssl::pkey::{PKey, Private};
 use openssl::ec::EcKey;
 use openssl::nid::Nid;
-use std::convert::TryInto;
 use std::str;
 use openssl::x509::store::X509StoreBuilder;
 use openssl::stack::Stack;
