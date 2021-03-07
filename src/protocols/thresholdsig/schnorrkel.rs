@@ -23,6 +23,9 @@ use std::convert::TryInto;
 use openssl::nid::Nid;
 use protocols::utils::utils::{get_player_id, verify_cert};
 use protocols::encryption::encryption_service::{encrypt, EncryptedMessage, decrypt};
+use std::path::Path;
+use std::fs::File;
+use std::io::Write;
 
 pub(crate) type GE = curv::elliptic::curves::curve_ristretto::GE;
 type FE = curv::elliptic::curves::curve_ristretto::FE;
@@ -109,30 +112,12 @@ pub struct Player {
 }
 
 
-
-#[derive(Clone)]
-pub struct ShareKey {
-    pub secret: FE,
-    pub public_key: GE,
-    pub player_id: usize,
-    pub poly: VerifiableSS<GE>,
-    pub r_i: FE,
-    pub R: GE,
-    pub sigma_i: FE,
-    message: Vec<u8>,
-    pub dkr: DkrGen,
-    pub ctx: SigningContext,
-}
-
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Parameters {
     pub threshold: usize,
     //t
     pub share_count: usize, //n
 }
-
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigRound1Message {
@@ -150,28 +135,27 @@ pub struct SigRound3Message {
     sigma_i: FE,
 }
 
-pub fn get_scalar(ctx: &SigningContext, message: &[u8], public_key: &GE, R: &GE) -> FE {
-    let mut t = ctx.bytes(message);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShareKey {
+    pub player_id: usize,
+    pub secret: FE,
+    pub public_key: GE,
+    pub poly: VerifiableSS<GE>,
+}
 
-    t.proto_name(b"Schnorr-sig");
-    let publicKey = PublicKey::from_bytes(&public_key.get_element().as_bytes()[..]).unwrap();
-    t.commit_point(b"sign:pk", publicKey.as_compressed());
-
-    let mut lower: [u8; 32] = [0u8; 32];
-    lower.copy_from_slice(&R.pk_to_key_slice()[..32]);
-    let R2 = CompressedRistretto(lower);
-    t.commit_point(b"sign:R", &R2);
-
-    let k1 = t.challenge_scalar(b"sign:c");
-    let mut k2 = k1.to_bytes();
-    k2.reverse();
-
-    let kx = BigInt::from(&k2[..]);
-    ECScalar::from(&kx)
+#[derive(Clone)]
+pub struct SigningCeremony {
+    pub share_key : ShareKey,
+    message: Vec<u8>,
+    pub r_i: FE,
+    pub R: GE,
+    pub sigma_i: FE,
+    pub dkr: DkrGen,
+    pub ctx: SigningContext,
 }
 
 /*
-impl SchnorkellKey {
+impl SigningCeremony {
     pub fn signRound1(&mut self, session_id: String, ctx: SigningContext, message: &Vec<u8>, parties: &[usize]) -> Result<Round1Message, Error> {
         self.message = message.clone();
         self.dkr = NewDrgGen(session_id, self.player_id, self.poly.parameters.threshold, parties.len());
@@ -262,6 +246,26 @@ pub fn NewDrgGen(session_id: String, ca : X509, key :&EcKey<Private>, cert : &X5
     dk
 
  }
+pub fn get_schnorkell_scalar(ctx: &SigningContext, message: &[u8], public_key: &GE, R: &GE) -> FE {
+    let mut t = ctx.bytes(message);
+
+    t.proto_name(b"Schnorr-sig");
+    let publicKey = PublicKey::from_bytes(&public_key.get_element().as_bytes()[..]).unwrap();
+    t.commit_point(b"sign:pk", publicKey.as_compressed());
+
+    let mut lower: [u8; 32] = [0u8; 32];
+    lower.copy_from_slice(&R.pk_to_key_slice()[..32]);
+    let R2 = CompressedRistretto(lower);
+    t.commit_point(b"sign:R", &R2);
+
+    let k1 = t.challenge_scalar(b"sign:c");
+    let mut k2 = k1.to_bytes();
+    k2.reverse();
+
+    let kx = BigInt::from(&k2[..]);
+    ECScalar::from(&kx)
+}
+
 /*
 pub fn get_share(dkrg : &DkrGen) -> SchnorkellKey {
     SchnorkellKey {
@@ -291,8 +295,37 @@ pub fn filter(player_id: usize, cols: &Vec<Vec<Round2Message>>) -> Vec<Round2Mes
     result
 }
 impl DkrGen {
-
+    pub fn get_share_key(&self) -> ShareKey {
+        ShareKey{
+            player_id: self.get_player_id(),
+            secret: self.keyShare,
+            public_key: self.publicKey,
+            poly: self.poly.clone(),
+        }
+    }
     pub fn write_share_to_file(&self) {
+        let ks = self.get_share_key();
+        let result = serde_json::to_string(&ks).unwrap();
+
+        let pt = format!("agents/agent{}_share.json", self.get_player_id());
+        let path = Path::new(&pt);
+        let prefix = path.parent().unwrap();
+
+        std::fs::create_dir_all(prefix).unwrap();
+
+        let display = path.display();
+
+        // Open a file in write-only mode, returns `io::Result<File>`
+        let mut file = match File::create(&path) {
+            Err(why) => panic!("couldn't create {}: {}", display, why),
+            Ok(file) => file,
+        };
+
+        // Write the `LOREM_IPSUM` string to `file`, returns `io::Result<()>`
+        match file.write(result.as_bytes()) {
+            Err(why) => panic!("couldn't write to {}: {}", display, why),
+            Ok(_) => println!("successfully wrote to {}", display),
+        }
 
     }
     pub fn get_player_id(&self) -> usize {
@@ -432,7 +465,7 @@ pub struct Signature {
 
 impl Signature {
     pub fn verify(&self, ctx: &SigningContext, message: &[u8], pubKey: &GE) -> Result<(), Error> {
-        let kt1: FE = get_scalar(ctx, message, pubKey, &self.R);
+        let kt1: FE = get_schnorkell_scalar(ctx, message, pubKey, &self.R);
         let kt2 = FE::q() - kt1.to_big_int();
         let k = ECScalar::from(&kt2);
 
