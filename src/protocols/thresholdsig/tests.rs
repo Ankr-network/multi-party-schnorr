@@ -17,3 +17,5 @@ fn test_schnorrkel() {
     let public_key: PublicKey = keypair.public;
     assert!(public_key.verify(context.bytes(message), &signature).is_ok());
 }
+
+

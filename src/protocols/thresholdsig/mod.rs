@@ -26,5 +26,5 @@ mod test_schnorrkel;
 /// s = kx + r
 /// Signatures are (R,s) that satisfy sG = R + kP.
 pub mod schnorrkel;
-mod test_normalscnorrkell;
+mod tests;
 

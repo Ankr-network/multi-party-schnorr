@@ -1,183 +1,136 @@
 #![allow(non_snake_case)]
-/*
-    Multisig Schnorr
+use curv::elliptic::curves::traits::ECPoint;
+ use protocols::thresholdsig::bitcoin_schnorr::*;
+use protocols::utils::utils::{load_cert, load_private_key};
+use openssl::x509::X509;
+use openssl::ec::EcKey;
+use openssl::pkey::Private;
 
-    Copyright 2018 by Kzen Networks
+pub fn load_certs_from_file() -> (X509, Vec<X509>, Vec<EcKey<Private>>){
+    let ca = load_cert(include_bytes!("../../../agents/ca.cert")).unwrap();
+    let agents = vec![load_cert(include_bytes!("../../../agents/agent1.crt")).unwrap(),
+                      load_cert(include_bytes!("../../../agents/agent2.crt")).unwrap(),
+                      load_cert(include_bytes!("../../../agents/agent3.crt")).unwrap(),
+                      load_cert(include_bytes!("../../../agents/agent4.crt")).unwrap(),
+                      load_cert(include_bytes!("../../../agents/agent5.crt")).unwrap()];
 
-    This file is part of Multisig Schnorr library
-    (https://github.com/KZen-networks/multisig-schnorr)
+    let keys = vec![load_private_key(include_bytes!("../../../agents/agent1.key")).unwrap(),
+                    load_private_key(include_bytes!("../../../agents/agent2.key")).unwrap(),
+                    load_private_key(include_bytes!("../../../agents/agent3.key")).unwrap(),
+                    load_private_key(include_bytes!("../../../agents/agent4.key")).unwrap(),
+                    load_private_key(include_bytes!("../../../agents/agent5.key")).unwrap()];
 
-    Multisig Schnorr is free software: you can redistribute
-    it and/or modify it under the terms of the GNU General Public
-    License as published by the Free Software Foundation, either
-    version 3 of the License, or (at your option) any later version.
-
-    @license GPL-3.0+ <https://github.com/KZen-networks/multisig-schnorr/blob/master/LICENSE>
-*/
-use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::elliptic::curves::secp256_k1::FE;
-use curv::elliptic::curves::secp256_k1::GE;
-
-use protocols::thresholdsig::bitcoin_schnorr::*;
+    (ca,agents,keys)
+}
 
 #[test]
-#[allow(unused_doc_comments)]
-fn test_t2_n4() {
-    /// this test assumes that in keygen we have n=4 parties and in signing we have 4 parties as well.
+fn test_t2_n4_with_keygen() {
+
+    let (ca, agents, keys) = load_certs_from_file();
+
     let t = 2;
     let n = 4;
-    let key_gen_parties_index_vec: [usize; 4] = [0, 1, 2, 3];
-    let key_gen_parties_points_vec = (0..key_gen_parties_index_vec.len())
-        .map(|i| key_gen_parties_index_vec[i].clone() + 1)
-        .collect::<Vec<usize>>();
+    let mut client1 = NewDrgGen("session 1".into(), ca.clone(),&keys[0], &agents[0], &agents[0..4], t, n);
+    let mut client2 = NewDrgGen("session 1".into(), ca.clone(),&keys[1], &agents[1], &agents[0..4], t, n);
+    let mut client3 = NewDrgGen("session 1".into(), ca.clone(),&keys[2], &agents[2], &agents[0..4], t, n);
+    let mut client4 = NewDrgGen("session 1".into(), ca.clone(),&keys[3], &agents[3], &agents[0..4], t, n);
 
-    println!("{:?}", key_gen_parties_points_vec);
+    let round11 = client1.round1();
+    let round21 = client2.round1();
+    let round31 = client3.round1();
+    let round41 = client4.round1();
 
-    let (_priv_keys_vec, priv_shared_keys_vec, Y, key_gen_vss_vec) =
-        keygen_t_n_parties(t.clone(), n.clone(), &key_gen_parties_points_vec);
+    assert!(round11.is_ok());
+    assert!(round21.is_ok());
+    assert!(round31.is_ok());
+    assert!(round41.is_ok());
+
+    let round12 = client1.round2(&[round21.clone().unwrap(), round31.clone().unwrap(), round41.clone().unwrap()]);
+    let round22 = client2.round2(&[round11.clone().unwrap(), round31.clone().unwrap(), round41.clone().unwrap()]);
+    let round32 = client3.round2(&[round11.clone().unwrap(), round21.clone().unwrap(), round41.clone().unwrap()]);
+    let round42 = client4.round2(&[round11.clone().unwrap(), round21.clone().unwrap(), round31.clone().unwrap()]);
+
+    assert!(round12.is_ok());
+    assert!(round22.is_ok());
+    assert!(round32.is_ok());
+    assert!(round42.is_ok());
+
+    let round13 = client1.round3(filter(client1.get_player_id(), &vec![round12.clone().unwrap(), round22.clone().unwrap(), round32.clone().unwrap(), round42.clone().unwrap()]));
+    let round23 = client2.round3(filter(client2.get_player_id(), &vec![round12.clone().unwrap(), round22.clone().unwrap(), round32.clone().unwrap(), round42.clone().unwrap()]));
+    let round33 = client3.round3(filter(client3.get_player_id(), &vec![round12.clone().unwrap(), round22.clone().unwrap(), round32.clone().unwrap(), round42.clone().unwrap()]));
+    let round43 = client4.round3(filter(client4.get_player_id(), &vec![round12.clone().unwrap(), round22.clone().unwrap(), round32.clone().unwrap(), round42.clone().unwrap()]));
+
+    assert!(round13.is_ok());
+    assert!(round23.is_ok());
+    assert!(round33.is_ok());
+    assert!(round43.is_ok());
+
+    println!("Public Key Hex {}",hex::encode(round13.unwrap().public_key.pk_to_key_slice()));
+
+    client1.write_share_to_file();
+    client2.write_share_to_file();
+    client3.write_share_to_file();
+    client4.write_share_to_file();
 
 
-    let parties_index_vec: [usize; 4] = [0, 1, 2, 3];
-    let parties_points_vec = (0..parties_index_vec.len())
-        .map(|i| parties_index_vec[i].clone() + 1)
-        .collect::<Vec<usize>>();
-
-    let (_eph_keys_vec, eph_shared_keys_vec, V, eph_vss_vec) =
-        keygen_t_n_parties(t.clone(), n.clone(), &parties_points_vec);
-    let message: [u8; 4] = [79, 77, 69, 82];
-    let local_sig_vec = (0..n.clone())
-        .map(|i| LocalSig::compute(&message, &eph_shared_keys_vec[i], &priv_shared_keys_vec[i]))
-        .collect::<Vec<LocalSig>>();
-    let verify_local_sig = LocalSig::verify_local_sigs(
-        &local_sig_vec,
-        &parties_index_vec,
-        &key_gen_vss_vec,
-        &eph_vss_vec,
-    );
-
-    assert!(verify_local_sig.is_ok());
-    let vss_sum_local_sigs = verify_local_sig.unwrap();
-    let signature = Signature::generate(&vss_sum_local_sigs, &local_sig_vec, &parties_index_vec, V);
-    let verify_sig = signature.verify(&message, &Y);
-    assert!(verify_sig.is_ok());
 }
 
 #[test]
-#[allow(unused_doc_comments)]
-fn test_t2_n5_sign_with_4() {
-    /// this test assumes that in keygen we have n=4 parties and in signing we have 4 parties, indices 0,1,3,4.
-    let t = 2;
-    let n = 5;
-    /// keygen:
-    let key_gen_parties_index_vec: [usize; 5] = [0, 1, 2, 3, 4];
-    let key_gen_parties_points_vec = (0..key_gen_parties_index_vec.len())
-        .map(|i| key_gen_parties_index_vec[i].clone() + 1)
-        .collect::<Vec<usize>>();
-    let (_priv_keys_vec, priv_shared_keys_vec, Y, key_gen_vss_vec) =
-        keygen_t_n_parties(t.clone(), n.clone(), &key_gen_parties_points_vec);
-    /// signing:
-    let parties_index_vec: [usize; 4] = [0, 1, 3, 4];
-    let parties_points_vec = (0..parties_index_vec.len())
-        .map(|i| parties_index_vec[i].clone() + 1)
-        .collect::<Vec<usize>>();
-    let num_parties = parties_index_vec.len();
-    let (_eph_keys_vec, eph_shared_keys_vec, V, eph_vss_vec) =
-        keygen_t_n_parties(t.clone(), num_parties.clone(), &parties_points_vec);
-    let message: [u8; 4] = [79, 77, 69, 82];
+fn test_t2_n4_with_signing_ceremony() {
 
-    // each party computes and share a local sig, we collected them here to a vector as each party should do AFTER receiving all local sigs
-    let local_sig_vec = (0..num_parties.clone())
-        .map(|i| {
-            LocalSig::compute(
-                &message,
-                &eph_shared_keys_vec[i],
-                &priv_shared_keys_vec[parties_index_vec[i]],
-            )
-        })
-        .collect::<Vec<LocalSig>>();
+    let (ca, agents, keys) = load_certs_from_file();
 
-    let verify_local_sig = LocalSig::verify_local_sigs(
-        &local_sig_vec,
-        &parties_index_vec,
-        &key_gen_vss_vec,
-        &eph_vss_vec,
-    );
+    let ks1=ShareKey::from(&include_bytes!("../../../agents/agent1_bitcoin_share.json").to_vec());
+    let ks2=ShareKey::from(&include_bytes!("../../../agents/agent2_bitcoin_share.json").to_vec());
+    let ks3=ShareKey::from(&include_bytes!("../../../agents/agent3_bitcoin_share.json").to_vec());
 
-    assert!(verify_local_sig.is_ok());
-    let vss_sum_local_sigs = verify_local_sig.unwrap();
 
-    /// each party / dealer can generate the signature
-    let signature = Signature::generate(&vss_sum_local_sigs, &local_sig_vec, &parties_index_vec, V);
-    let verify_sig = signature.verify(&message, &Y);
-    assert!(verify_sig.is_ok());
-}
+    let mut key1 = NewSigningCeremony("session 1".into(), ks1,ca.clone(),&keys[0], &agents[0], &agents[0..3]);
+    let mut key2 = NewSigningCeremony("session 1".into(), ks2,ca.clone(),&keys[1], &agents[1], &agents[0..3]);
+    let mut key3 = NewSigningCeremony("session 1".into(), ks3,ca.clone(),&keys[2], &agents[2], &agents[0..3]);
 
-#[allow(dead_code)]
-pub fn keygen_t_n_parties(
-    t: usize,
-    n: usize,
-    parties: &[usize],
-) -> (Vec<Keys>, Vec<SharedKeys>, GE, Vec<VerifiableSS<GE>>) {
-    let parames = Parameters {
-        threshold: t,
-        share_count: n.clone(),
-    };
-    assert_eq!(parties.len(), n.clone());
-    let party_keys_vec = (0..n.clone())
-        .map(|i| Keys::phase1_create(parties[i]))
-        .collect::<Vec<Keys>>();
+    let message: [u8; 4] = [21, 24, 25, 26];
+    let signRound11 = key1.signRound1(&message.to_vec());
+    let signRound21 = key2.signRound1(&message.to_vec());
+    let signRound31 = key3.signRound1(&message.to_vec());
 
-    let mut bc1_vec = Vec::new();
-    let mut blind_vec = Vec::new();
-    for i in 0..n.clone() {
-        let (bc1, blind) = party_keys_vec[i].phase1_broadcast();
-        bc1_vec.push(bc1);
-        blind_vec.push(blind);
-    }
+    assert!(signRound11.is_ok());
+    assert!(signRound21.is_ok());
+    assert!(signRound31.is_ok());
 
-    let y_vec = (0..n.clone())
-        .map(|i| party_keys_vec[i].y_i.clone())
-        .collect::<Vec<GE>>();
-    let mut y_vec_iter = y_vec.iter();
-    let head = y_vec_iter.next().unwrap();
-    let tail = y_vec_iter;
-    let y_sum = tail.fold(head.clone(), |acc, x| acc + x);
-    let mut vss_scheme_vec = Vec::new();
-    let mut secret_shares_vec = Vec::new();
-    let mut index_vec = Vec::new();
-    for i in 0..n.clone() {
-        let (vss_scheme, secret_shares, index) = party_keys_vec[i]
-            .phase1_verify_com_phase2_distribute(&parames, &blind_vec, &y_vec, &bc1_vec, parties)
-            .expect("invalid key");
-        vss_scheme_vec.push(vss_scheme);
-        secret_shares_vec.push(secret_shares);
-        index_vec.push(index);
-    }
+    let signRound12 = key1.signRound2(&[signRound21.clone().unwrap(), signRound31.clone().unwrap()]);
+    let signRound22 = key2.signRound2(&[signRound11.clone().unwrap(), signRound31.clone().unwrap()]);
+    let signRound32 = key3.signRound2(&[signRound11.clone().unwrap(), signRound21.clone().unwrap()]);
 
-    let party_shares = (0..n.clone())
-        .map(|i| {
-            (0..n.clone())
-                .map(|j| {
-                    let vec_j = &secret_shares_vec[j];
-                    vec_j[i].clone()
-                })
-                .collect::<Vec<FE>>()
-        })
-        .collect::<Vec<Vec<FE>>>();
+    assert!(signRound12.is_ok());
+    assert!(signRound22.is_ok());
+    assert!(signRound32.is_ok());
 
-    let mut shared_keys_vec = Vec::new();
-    for i in 0..n.clone() {
-        let shared_keys = party_keys_vec[i]
-            .phase2_verify_vss_construct_keypair(
-                &parames,
-                &y_vec,
-                &party_shares[i],
-                &vss_scheme_vec,
-                &index_vec[i],
-            )
-            .expect("invalid vss");
-        shared_keys_vec.push(shared_keys);
-    }
+    let signRound13 = key1.signRound3(filter(key1.dkr.get_player_id(), &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
+    let signRound23 = key2.signRound3(filter(key2.dkr.get_player_id(), &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
+    let signRound33 = key3.signRound3(filter(key3.dkr.get_player_id(), &vec![signRound12.clone().unwrap(), signRound22.clone().unwrap(), signRound32.clone().unwrap()]));
 
-    (party_keys_vec, shared_keys_vec, y_sum, vss_scheme_vec)
+
+    assert!(signRound13.is_ok());
+    assert!(signRound23.is_ok());
+    assert!(signRound33.is_ok());
+
+    let signRound14 = key1.signRound4(&vec![signRound23.clone().unwrap(), signRound33.clone().unwrap()]);
+    let signRound24 = key2.signRound4(&vec![signRound13.clone().unwrap(), signRound33.clone().unwrap()]);
+    let signRound34 = key3.signRound4(&vec![signRound13.clone().unwrap(), signRound23.clone().unwrap()]);
+
+    assert!(signRound14.is_ok());
+    assert!(signRound24.is_ok());
+    assert!(signRound34.is_ok());
+
+   /* let pubKey = key1.share_key.public_key;
+
+    //check with polkadot lib
+    let signature = signRound14.unwrap();
+    let publicKey = PublicKey::from_bytes(&pubKey.get_element().as_bytes()[..]).unwrap();
+    let sg = bitcoin::Signature::from_bytes(&signature.to_bytes()).unwrap();
+
+    assert!(publicKey.verify(ctx.bytes(&message), &sg).is_ok(), "not verified by polkadot lib");
+*/
+
 }
