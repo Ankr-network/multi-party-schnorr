@@ -14,31 +14,24 @@
     @license GPL-3.0+ <https://github.com/KZen-networks/multisig-schnorr/blob/master/LICENSE>
 */
 
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-
+extern  crate aes_gcm;
 extern crate centipede;
 extern crate curv;
-
-extern crate schnorrkel;
-
-extern crate rand;
-
-extern crate serde_json;
-
 extern crate curve25519_dalek;
-
 extern crate ecies_ed25519;
-
 extern crate openssl;
-
 extern crate openssl_sys;
-
+extern crate proc_macro;
+extern crate rand;
+extern crate schnorrkel;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate typenum;
 
-extern  crate aes_gcm;
-extern crate proc_macro;
+
+use std::fmt;
 
 pub mod protocols;
 
@@ -49,8 +42,6 @@ pub enum Error {
     InvalidCom,
     InvalidSig,
 }
-
-use std::fmt;
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -23,7 +23,6 @@ openssl-sys = "0.9.60"
 aes-gcm = "0.8.0"
 typenum = "1.12.0"
 
-
 [dependencies.centipede]
 git = "https://github.com/KZen-networks/centipede"
 tag = "v0.2.9"

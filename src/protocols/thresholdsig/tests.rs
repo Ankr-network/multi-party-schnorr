@@ -19,3 +19,6 @@ fn test_schnorrkel() {
 }
 
 
+#[test]
+#[allow(unused_doc_comments)]
+fn test_schnorr_bitcoin() {}
