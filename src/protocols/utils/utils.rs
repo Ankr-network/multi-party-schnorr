@@ -1,11 +1,12 @@
-use openssl::x509::{X509, X509StoreContext};
-use openssl::error::ErrorStack;
-use openssl::pkey::{PKey, Private};
-use openssl::ec::EcKey;
-use openssl::nid::Nid;
 use std::str;
-use openssl::x509::store::X509StoreBuilder;
+
+use openssl::ec::EcKey;
+use openssl::error::ErrorStack;
+use openssl::nid::Nid;
+use openssl::pkey::{PKey, Private};
 use openssl::stack::Stack;
+use openssl::x509::{X509, X509StoreContext};
+use openssl::x509::store::X509StoreBuilder;
 
 pub fn load_cert(binary : &[u8]) ->Result<X509,ErrorStack>{
     X509::from_pem(binary)
@@ -57,4 +58,21 @@ pub fn verify_cert(cert: &X509, ca: &X509) -> Result<bool, String> {
     } else {
         return Err("ca does not issue this cert".parse().unwrap());
     }
+}
+
+pub fn load_certs_from_file() -> (X509, Vec<X509>, Vec<EcKey<Private>>) {
+    let ca = load_cert(include_bytes!("../../../agents/ca.cert")).unwrap();
+    let agents = vec![load_cert(include_bytes!("../../../agents/agent1.crt")).unwrap(),
+                      load_cert(include_bytes!("../../../agents/agent2.crt")).unwrap(),
+                      load_cert(include_bytes!("../../../agents/agent3.crt")).unwrap(),
+                      load_cert(include_bytes!("../../../agents/agent4.crt")).unwrap(),
+                      load_cert(include_bytes!("../../../agents/agent5.crt")).unwrap()];
+
+    let keys = vec![load_private_key(include_bytes!("../../../agents/agent1.key")).unwrap(),
+                    load_private_key(include_bytes!("../../../agents/agent2.key")).unwrap(),
+                    load_private_key(include_bytes!("../../../agents/agent3.key")).unwrap(),
+                    load_private_key(include_bytes!("../../../agents/agent4.key")).unwrap(),
+                    load_private_key(include_bytes!("../../../agents/agent5.key")).unwrap()];
+
+    (ca, agents, keys)
 }

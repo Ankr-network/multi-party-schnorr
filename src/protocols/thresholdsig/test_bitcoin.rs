@@ -1,27 +1,12 @@
 #![allow(non_snake_case)]
+
 use curv::elliptic::curves::traits::ECPoint;
- use protocols::thresholdsig::bitcoin_schnorr::*;
-use protocols::utils::utils::{load_cert, load_private_key};
-use openssl::x509::X509;
 use openssl::ec::EcKey;
 use openssl::pkey::Private;
+use openssl::x509::X509;
 
-pub fn load_certs_from_file() -> (X509, Vec<X509>, Vec<EcKey<Private>>){
-    let ca = load_cert(include_bytes!("../../../agents/ca.cert")).unwrap();
-    let agents = vec![load_cert(include_bytes!("../../../agents/agent1.crt")).unwrap(),
-                      load_cert(include_bytes!("../../../agents/agent2.crt")).unwrap(),
-                      load_cert(include_bytes!("../../../agents/agent3.crt")).unwrap(),
-                      load_cert(include_bytes!("../../../agents/agent4.crt")).unwrap(),
-                      load_cert(include_bytes!("../../../agents/agent5.crt")).unwrap()];
-
-    let keys = vec![load_private_key(include_bytes!("../../../agents/agent1.key")).unwrap(),
-                    load_private_key(include_bytes!("../../../agents/agent2.key")).unwrap(),
-                    load_private_key(include_bytes!("../../../agents/agent3.key")).unwrap(),
-                    load_private_key(include_bytes!("../../../agents/agent4.key")).unwrap(),
-                    load_private_key(include_bytes!("../../../agents/agent5.key")).unwrap()];
-
-    (ca,agents,keys)
-}
+use protocols::thresholdsig::bitcoin_schnorr::*;
+use protocols::utils::utils::{load_cert, load_certs_from_file, load_private_key};
 
 #[test]
 fn test_t2_n4_with_keygen() {
