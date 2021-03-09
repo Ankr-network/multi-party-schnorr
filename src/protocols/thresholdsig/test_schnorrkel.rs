@@ -82,9 +82,9 @@ fn test_t2_n4_with_signing_ceremony() {
     let (ca, agents, keys) = load_certs_from_file();
     let ctx = signing_context(b"threshold schnorkell signing test");
 
-    let ks1=ShareKey::from(&include_bytes!("../../../agents/agent1_share.json").to_vec());
-    let ks2=ShareKey::from(&include_bytes!("../../../agents/agent2_share.json").to_vec());
-    let ks3=ShareKey::from(&include_bytes!("../../../agents/agent3_share.json").to_vec());
+    let ks1=ShareKey::from(&include_bytes!("../../../agents/agent1_schnorrkel_share.json").to_vec());
+    let ks2=ShareKey::from(&include_bytes!("../../../agents/agent2_schnorrkel_share.json").to_vec());
+    let ks3=ShareKey::from(&include_bytes!("../../../agents/agent3_schnorrkel_share.json").to_vec());
 
 
     let mut key1 = NewSigningCeremony("session 1".into(), ks1,ctx.clone(),ca.clone(),&keys[0], &agents[0], &agents[0..3]);

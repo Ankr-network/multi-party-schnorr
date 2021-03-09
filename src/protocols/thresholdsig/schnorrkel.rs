@@ -314,7 +314,7 @@ impl DkrGen {
         let ks = self.get_share_key();
         let result = serde_json::to_string(&ks).unwrap();
 
-        let pt = format!("agents/agent{}_share.json", self.get_player_id());
+        let pt = format!("agents/agent{}_schnorrkel_share.json", self.get_player_id());
         let path = Path::new(&pt);
         let prefix = path.parent().unwrap();
 
